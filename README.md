@@ -66,25 +66,26 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 ---
 
 ## 📁 Estructura del proyecto
+
+```
 back_end/
-├── auth-service/ # Authorization Server
-│ ├── src/main/java/auth/
-│ │ ├── controller/ # Endpoints adicionales (login personalizado, si se necesita)
-│ │ ├── service/ # Lógica de usuarios (carga de clientes OAuth)
-│ │ ├── repository/ # JPA repositorios (usuarios, clientes registrados)
-│ │ ├── entity/ # Entidades JPA (usuario, cliente OAuth)
-│ │ ├── config/ # Configuración del Authorization Server
-│ │ └── exception/ # Manejador de errores
-│ ├── Dockerfile
-│ └── pom.xml
-├── user-service/ # Resource Server (usuarios)
-├── order-service/ # Resource Server (pedidos)
-├── api-gateway/ # Cliente OAuth + enrutamiento
+├── auth-service/                 # Authorization Server
+│   ├── src/main/java/auth/
+│   │   ├── controller/           # Endpoints adicionales (login personalizado, si se necesita)
+│   │   ├── service/              # Lógica de usuarios (carga de clientes OAuth)
+│   │   ├── repository/           # JPA repositorios (usuarios, clientes registrados)
+│   │   ├── entity/               # Entidades JPA (usuario, cliente OAuth)
+│   │   ├── config/               # Configuración del Authorization Server
+│   │   └── exception/            # Manejador de errores
+│   ├── Dockerfile
+│   └── pom.xml
+├── user-service/                 # Resource Server (usuarios)
+├── order-service/                # Resource Server (pedidos)
+├── api-gateway/                  # Cliente OAuth + enrutamiento
 ├── docker-compose.yml
 ├── .gitignore
 └── README.md
-
-text
+```
 
 Cada microservicio sigue el patrón Controller → Service → Repository → Entity, utilizando DTOs para la comunicación con el exterior.
 
@@ -96,118 +97,112 @@ Cada microservicio sigue el patrón Controller → Service → Repository → En
    ```bash
    git clone git@github.com:tu-usuario/back_end.git
    cd back_end
-Construir los JAR de cada servicio (opcional, los Dockerfiles pueden hacer multi‑stage)
+   ```
 
-bash
-cd auth-service && ./mvnw clean package && cd ..
-cd user-service && ./mvnw clean package && cd ..
-cd order-service && ./mvnw clean package && cd ..
-cd api-gateway && ./mvnw clean package && cd ..
-Levantar todos los contenedores
+2. **Construir los JAR de cada servicio** (opcional, los Dockerfiles pueden hacer multi‑stage)
+   ```bash
+   cd auth-service && ./mvnw clean package && cd ..
+   cd user-service && ./mvnw clean package && cd ..
+   cd order-service && ./mvnw clean package && cd ..
+   cd api-gateway && ./mvnw clean package && cd ..
+   ```
 
-bash
-docker compose up --build
-Este comando levanta los cinco contenedores, crea una red interna y expone los puertos:
+3. **Levantar todos los contenedores**
+   ```bash
+   docker compose up --build
+   ```
+   Este comando levanta los cinco contenedores, crea una red interna y expone los puertos:
+   - Gateway: `8080`
+   - auth-service: `8081`
+   - user-service: `8082`
+   - order-service: `8083`
+   - MySQL: `3306`
 
-Gateway: 8080
+4. **Verificar el estado**
+   ```bash
+   docker compose ps
+   ```
 
-auth-service: 8081
+5. **Obtener un token JWT** (para probar desde Postman)
+   - El Authorization Server expone el endpoint:
+     ```
+     POST http://localhost:8081/oauth2/token
+     ```
+   - Utiliza autenticación **Basic Auth** (client-id / client-secret) definida en la configuración de `auth-service`.
+   - Envía el parámetro `grant_type=client_credentials`.
 
-user-service: 8082
+   Respuesta:
+   ```json
+   {
+     "access_token": "eyJraWQ...",
+     "token_type": "Bearer",
+     "expires_in": 3599
+   }
+   ```
 
-order-service: 8083
-
-MySQL: 3306
-
-Verificar el estado
-
-bash
-docker compose ps
-Obtener un token JWT (para probar desde Postman)
-
-El Authorization Server expone el endpoint:
-
-text
-POST http://localhost:8081/oauth2/token
-Utiliza autenticación Basic Auth (client-id / client-secret) definida en la configuración de auth-service.
-
-Envía el parámetro grant_type=client_credentials.
-
-Respuesta:
-
-json
-{
-  "access_token": "eyJraWQ...",
-  "token_type": "Bearer",
-  "expires_in": 3599
-}
-Acceder a los recursos protegidos
-
-Incluye el token en el header: Authorization: Bearer <access_token>
-
-Ejemplo: GET http://localhost:8080/api/usuarios
+6. **Acceder a los recursos protegidos**
+   - Incluye el token en el header: `Authorization: Bearer <access_token>`
+   - Ejemplo: `GET http://localhost:8080/api/usuarios`
 
 Para detener los contenedores:
-
-bash
+```bash
 docker compose down
-🧪 Pruebas con Postman
-Se incluye una colección actualizada en la raíz: PedidosTracking_OAuth2.postman_collection.json. El flujo de pruebas es:
+```
 
-Solicitar token (sin necesidad de usuario/contraseña previo, se usa client credentials).
+---
 
-Usar token para invocar endpoints de user-service y order-service a través del gateway.
+## 🧪 Pruebas con Postman
 
-Solicitud de token (Authorization Server)
-URL: http://localhost:8081/oauth2/token
+Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postman_collection.json`. El flujo de pruebas es:
 
-Método: POST
+1. **Solicitar token** (sin necesidad de usuario/contraseña previo, se usa client credentials).
+2. **Usar token** para invocar endpoints de `user-service` y `order-service` a través del gateway.
 
-Auth: Basic Auth con client-id y client-secret (ej. cliente-web / secreto-web).
+### Solicitud de token (Authorization Server)
 
-Body: x-www-form-urlencoded con grant_type=client_credentials.
+- **URL**: `http://localhost:8081/oauth2/token`
+- **Método**: POST
+- **Auth**: Basic Auth con `client-id` y `client-secret` (ej. `cliente-web` / `secreto-web`).
+- **Body**: `x-www-form-urlencoded` con `grant_type=client_credentials`.
+- **Respuesta**: contiene `access_token`. Copiar el token.
 
-Respuesta: contiene access_token. Copiar el token.
+### Llamada a un endpoint protegido (Resource Server)
 
-Llamada a un endpoint protegido (Resource Server)
-URL: http://localhost:8080/api/pedidos (pasa por el gateway)
+- **URL**: `http://localhost:8080/api/pedidos` (pasa por el gateway)
+- **Método**: GET
+- **Headers**: `Authorization: Bearer <token>`
 
-Método: GET
+Esperar respuesta `200 OK` con lista de pedidos (vacía al principio).
 
-Headers: Authorization: Bearer <token>
+### Validación de errores
 
-Esperar respuesta 200 OK con lista de pedidos (vacía al principio).
-
-Validación de errores
-Token inválido o ausente → 401 Unauthorized
-
-Token expirado → 401 Unauthorized
-
-Rol insuficiente (si se implementa) → 403 Forbidden
+- Token inválido o ausente → `401 Unauthorized`
+- Token expirado → `401 Unauthorized`
+- Rol insuficiente (si se implementa) → `403 Forbidden`
 
 Los tiempos de respuesta se mantienen por debajo de 2 segundos (RNF4) gracias a la validación local de JWT en los Resource Servers (sin llamadas al Authorization Server en cada petición).
 
-☁️ Despliegue en Render
-Render permite desplegar un docker-compose.yml como Blueprint. Pasos:
+---
 
-Subir el repositorio a GitHub.
+## ☁️ Despliegue en Render
 
-En Render, crear un nuevo Blueprint y conectar el repo.
+Render permite desplegar un `docker-compose.yml` como Blueprint. Pasos:
 
-Asegurarse de configurar las siguientes variables de entorno:
+1. Subir el repositorio a GitHub.
+2. En Render, crear un nuevo **Blueprint** y conectar el repo.
+3. Asegurarse de configurar las siguientes variables de entorno:
+   - `JWT_PRIVATE_KEY` y `JWT_PUBLIC_KEY` (pueden generarse con OpenSSL).
+   - `CLIENT_ID`, `CLIENT_SECRET` (para el cliente OAuth del gateway).
+4. Render construirá y levantará los contenedores automáticamente.
+5. Actualizar el frontend para que apunte a la URL pública de Render (puerto 8080).
 
-JWT_PRIVATE_KEY y JWT_PUBLIC_KEY (pueden generarse con OpenSSL).
+> **Nota**: Para entornos de producción, se recomienda usar una base de datos externa (ej. Clever Cloud) en lugar del volumen efímero de Docker.
 
-CLIENT_ID, CLIENT_SECRET (para el cliente OAuth del gateway).
+---
 
-Render construirá y levantará los contenedores automáticamente.
+## 📐 Diagrama de arquitectura
 
-Actualizar el frontend para que apunte a la URL pública de Render (puerto 8080).
-
-Nota: Para entornos de producción, se recomienda usar una base de datos externa (ej. Clever Cloud) en lugar del volumen efímero de Docker.
-
-📐 Diagrama de arquitectura
-
+```mermaid
 graph TD
     Client[Frontend React] -->|OAuth 2.0 token request| Auth[auth-service :8081]
     Client -->|API calls con token| Gateway[API Gateway :8080]
@@ -218,62 +213,65 @@ graph TD
     Order --> DB
     User -.->|JWKS validation| Auth
     Order -.->|JWKS validation| Auth
+```
 
-Las líneas punteadas indican que los Resource Servers consultan el endpoint /.well-known/jwks.json del Authorization Server al iniciar (y periódicamente) para obtener la clave pública.
+Las líneas punteadas indican que los Resource Servers consultan el endpoint `/.well-known/jwks.json` del Authorization Server al iniciar (y periódicamente) para obtener la clave pública.
 
-👥 Contribuciones y flujo de trabajo en GitHub
-La rama main está protegida mediante Rulesets.
+---
 
-No se permite push directo a main; todo cambio debe realizarse mediante Pull Requests con al menos 1 aprobación.
+## 👥 Contribuciones y flujo de trabajo en GitHub
 
-Las conversaciones deben resolverse antes de fusionar.
+- La rama `main` está protegida mediante **Rulesets**.
+- No se permite push directo a `main`; todo cambio debe realizarse mediante **Pull Requests** con al menos 1 aprobación.
+- Las conversaciones deben resolverse antes de fusionar.
 
 Flujo recomendado:
-
-bash
+```bash
 git checkout main
 git pull origin main
 git checkout -b feature/nombre
 ... (commits)
 git push --set-upstream origin feature/nombre
+```
 Luego abrir Pull Request en GitHub.
 
-📸 Evidencias de pruebas
-Las capturas de pantalla de las pruebas con Postman se encuentran en la carpeta /docs:
+---
 
-postman-token-request.png – Solicitud de token exitosa.
+## 📸 Evidencias de pruebas
 
-postman-listar-pedidos.png – Listado de pedidos con token válido.
+Las capturas de pantalla de las pruebas con Postman se encuentran en la carpeta `/docs`:
 
-postman-error-401.png – Token inválido.
+- `postman-token-request.png` – Solicitud de token exitosa.
+- `postman-listar-pedidos.png` – Listado de pedidos con token válido.
+- `postman-error-401.png` – Token inválido.
+- `postman-error-409.png` – Conflicto por optimistic locking.
 
-postman-error-409.png – Conflicto por optimistic locking.
+También se incluye el archivo de colección exportado `PedidosTracking_OAuth2.postman_collection.json`.
 
-También se incluye el archivo de colección exportado PedidosTracking_OAuth2.postman_collection.json.
+---
 
-🧠 Buenas prácticas aplicadas
-Estándar OAuth 2.0 – Authorization Server y Resource Servores claramente separados.
+## 🧠 Buenas prácticas aplicadas
 
-Validación de tokens sin estado – Los Resource Servers validan localmente mediante clave pública.
+- **Estándar OAuth 2.0** – Authorization Server y Resource Servores claramente separados.
+- **Validación de tokens sin estado** – Los Resource Servers validan localmente mediante clave pública.
+- **API Gateway como cliente OAuth** – Centraliza la obtención del token (si el frontend no lo hace directamente).
+- **Optimistic locking** (`@Version`) en entidades `Pedido`.
+- **Contenerización** con Docker Compose.
+- **Manejo global de excepciones** (`@RestControllerAdvice`).
+- **Uso de DTOs** para no exponer entidades JPA.
 
-API Gateway como cliente OAuth – Centraliza la obtención del token (si el frontend no lo hace directamente).
+---
 
-Optimistic locking (@Version) en entidades Pedido.
+## 📄 Licencia
 
-Contenerización con Docker Compose.
-
-Manejo global de excepciones (@RestControllerAdvice).
-
-Uso de DTOs para no exponer entidades JPA.
-
-📄 Licencia
 Proyecto académico – Universidad Militar Nueva Granada. Sin fines comerciales.
 
-✒️ Autores
-Jorge Enrique Celis Cortés
+---
 
-Liner Fabian Candia Marin
+## ✒️ Autores
 
-Miguel Eduardo Parra Amador
-
-Santiago Andres Diaz Peña
+- Jorge Enrique Celis Cortés
+- Liner Fabian Candia Marin
+- Miguel Eduardo Parra Amador
+- Santiago Andres Diaz Peña
+```
