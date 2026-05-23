@@ -216,7 +216,7 @@ graph TD
     Order --> DB
 ```
 
-*Diagrama creado con Mermaid. También puedes incluir una imagen en formato PNG en la carpeta `/docs`.*
+*Diagrama creado con Mermaid. También se puede incluir una imagen en formato PNG en la carpeta `/docs`.*
 
 ---
 
