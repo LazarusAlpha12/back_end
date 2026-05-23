@@ -69,22 +69,52 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 
 ```
 back_end/
-├── auth-service/                 # Authorization Server
+├── auth-service/                 # Emisor de JWT (autenticación)
 │   ├── src/main/java/auth/
-│   │   ├── controller/           # Endpoints adicionales (login personalizado, si se necesita)
-│   │   ├── service/              # Lógica de usuarios (carga de clientes OAuth)
-│   │   ├── repository/           # JPA repositorios (usuarios, clientes registrados)
-│   │   ├── entity/               # Entidades JPA (usuario, cliente OAuth)
-│   │   ├── config/               # Configuración del Authorization Server
-│   │   └── exception/            # Manejador de errores
+│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register (opcional)
+│   │   ├── service/              # Lógica de negocio: AuthService (validar credenciales), JwtService (generar/validar tokens), UserDetailsService (cargar usuario)
+│   │   ├── repository/           # JPA repositorios: PersonaRepository (CRUD y consultas por email)
+│   │   ├── entity/               # Entidades JPA: Persona (id, email, password, rol, nombre, apellido, etc.)
+│   │   ├── dto/                  # Data Transfer Objects: LoginRequestDTO, LoginResponseDTO, RegisterRequestDTO (para no exponer entidades)
+│   │   ├── config/               # Clases de configuración: SecurityConfig (filtros, password encoder, rutas públicas), JwtAuthenticationFilter (intercepta y valida tokens en peticiones entrantes, aunque auth no necesita muchas)
+│   │   └── exception/            # Manejador global de excepciones: GlobalExceptionHandler (devuelve errores HTTP legibles, ej. 401, 400)
+│   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
+│   └── pom.xml                   # Dependencias Maven: Spring Boot Starter Web, Security, Data JPA, MySQL Connector, JJWT, etc.
+│
+├── user-service/                 # Resource Server (gestión de usuarios)
+│   ├── src/main/java/user/
+│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios), cambio de roles, etc.
+│   │   ├── service/              # Lógica de negocio: UsuarioService (crear, actualizar, eliminar, listar, asignar roles)
+│   │   ├── repository/           # PersonaRepository (acceso a base de datos de usuarios)
+│   │   ├── entity/               # Persona (puede tener más campos que la de auth, pero misma tabla compartida)
+│   │   ├── dto/                  # UsuarioRequestDTO (para crear/actualizar), UsuarioResponseDTO (para devolver datos sin password)
+│   │   ├── config/               # SecurityConfig: configurado como OAuth2 Resource Server con JWT (valida tokens usando la misma clave secreta o issuer-uri)
+│   │   └── exception/            # GlobalExceptionHandler (errores específicos, ej. 404 usuario no encontrado, 409 conflicto)
 │   ├── Dockerfile
-│   └── pom.xml
-├── user-service/                 # Resource Server (usuarios)
-├── order-service/                # Resource Server (pedidos)
-├── api-gateway/                  # Cliente OAuth + enrutamiento
-├── docker-compose.yml
-├── .gitignore
-└── README.md
+│   └── pom.xml                   # Dependencias: Spring Boot Starter Web, Security, OAuth2 Resource Server, Data JPA, MySQL Connector
+│
+├── order-service/                # Resource Server (pedidos, historial, ubicaciones)
+│   ├── src/main/java/order/
+│   │   ├── controller/           # Endpoints protegidos: CRUD de pedidos, cambiar estado, asignar repartidor, registrar ubicación, consultar historial
+│   │   ├── service/              # PedidoService, HistorialService (lógica de negocio de pedidos, optimistic locking, transacciones)
+│   │   ├── repository/           # PedidoRepository, HistorialRepository, UbicacionRepository (JPA)
+│   │   ├── entity/               # Pedido (con @Version), HistorialMovimiento, Ubicacion, EstadoPedido (enum)
+│   │   ├── dto/                  # PedidoRequestDTO, PedidoResponseDTO, HistorialDTO, UbicacionDTO, AsignacionDTO
+│   │   ├── config/               # SecurityConfig: Resource Server JWT (misma configuración que user-service)
+│   │   └── exception/            # GlobalExceptionHandler (OptimisticLockException → 409, etc.)
+│   ├── Dockerfile
+│   └── pom.xml                   # Mismas dependencias que user-service
+│
+├── api-gateway/                  # Punto único de entrada (Spring Cloud Gateway)
+│   ├── src/main/java/gateway/
+│   │   ├── config/               # GatewayConfig: define rutas (/auth/** → auth-service, /api/usuarios/** → user-service, /api/pedidos/** → order-service), timeouts, CORS, filtros (logs, etc.)
+│   │   └── filter/               # (Opcional) Filtros personalizados, por ejemplo para registrar cada petición o añuir headers
+│   ├── Dockerfile
+│   └── pom.xml                   # Dependencias: Spring Cloud Gateway (no incluye Spring Web, son incompatibles)
+│
+├── docker-compose.yml            # Orquestación de todos los contenedores: mysql-db, auth-service, user-service, order-service, api-gateway. Define red interna, volúmenes, variables de entorno.
+├── .gitignore                    # Archivos y carpetas ignoradas por Git: target/, .idea/, .DS_Store, application-secrets.yml, etc.
+└── README.md                     # Documentación del proyecto: arquitectura, instrucciones de ejecución, pruebas con Postman, diagrama, etc.
 ```
 
 Cada microservicio sigue el patrón Controller → Service → Repository → Entity, utilizando DTOs para la comunicación con el exterior.
