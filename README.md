@@ -304,4 +304,3 @@ Proyecto académico – Universidad Militar Nueva Granada. Sin fines comerciales
 - Liner Fabian Candia Marin
 - Miguel Eduardo Parra Amador
 - Santiago Andres Diaz Peña
-```
