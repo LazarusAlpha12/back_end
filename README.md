@@ -4,19 +4,17 @@ Este repositorio contiene la implementación del backend para un sistema de segu
 
 ## 📌 Tabla de Contenidos
 
-- [Arquitectura](#arquitectura)
-- [Tecnologías utilizadas](#tecnologías-utilizadas)
-- [Requisitos previos](#requisitos-previos)
-- [Estructura del proyecto](#estructura-del-proyecto)
-- [Instrucciones de ejecución local (con Docker)](#instrucciones-de-ejecución-local-con-docker)
-- [Pruebas con Postman](#pruebas-con-postman)
-- [Despliegue en Render](#despliegue-en-render)
-- [Diagrama de arquitectura](#diagrama-de-arquitectura)
-- [Contribuciones y flujo de trabajo en GitHub](#contribuciones-y-flujo-de-trabajo-en-github)
-- [Evidencias de pruebas](#evidencias-de-pruebas)
-- [Buenas prácticas aplicadas](#buenas-prácticas-aplicadas)
-
----
+- [Arquitectura](#-arquitectura)
+- [Tecnologías utilizadas](#-tecnologías-utilizadas)
+- [Requisitos previos](#-requisitos-previos)
+- [Estructura del proyecto](#-estructura-del-proyecto)
+- [Instrucciones de ejecución local (con Docker)](#-instrucciones-de-ejecución-local-con-docker)
+- [Pruebas con Postman](#-pruebas-con-postman)
+- [Despliegue en Render](#-despliegue-en-render)
+- [Diagrama de arquitectura](#-diagrama-de-arquitectura)
+- [Contribuciones y flujo de trabajo en GitHub](#-contribuciones-y-flujo-de-trabajo-en-github)
+- [Evidencias de pruebas](#-evidencias-de-pruebas)
+- [Buenas prácticas aplicadas](#-buenas-prácticas-aplicadas)
 
 ## 🏗️ Arquitectura
 
