@@ -1,0 +1,27 @@
+# Compiled output
+**/target/
+**/build/
+
+# IDE files
+.idea/
+*.iml
+.vscode/
+.classpath
+.project
+.settings/
+
+# Logs
+*.log
+logs/
+
+# Environment & secrets
+**/application-secrets.yml
+**/application-production.yml
+.env
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Docker volumes (local data)
+data/
