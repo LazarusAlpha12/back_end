@@ -42,13 +42,13 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 
 ## 🧰 Tecnologías utilizadas
 
-- **Java 17**
-- **Spring Boot 3.1.x**
+- **Java ver >= 17 **
+- **Spring Boot 4.0.x**
 - **Spring Authorization Server** (para `auth-service`)
 - **Spring Cloud Gateway** (API Gateway reactivo)
 - **Spring Security OAuth2 Resource Server** (para `user-service` y `order-service`)
 - **Spring Data JPA (Hibernate)**
-- **MySQL 8**
+- **MySQL ver >= 8**
 - **Maven**
 - **Docker & Docker Compose**
 - **Postman** (pruebas de API)
