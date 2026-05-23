@@ -58,7 +58,7 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 
 ## 📋 Requisitos previos
 
-- **Java 17** (JDK)
+- **Java 17 or higher** (Open JDK)
 - **Maven** (o usar `./mvnw`)
 - **Docker Desktop** (con integración WSL2 en Windows) o Docker Engine + Compose
 - **Git**
