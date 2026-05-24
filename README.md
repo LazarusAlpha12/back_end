@@ -39,6 +39,16 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 5. `user-service` y `order-service` (Resource Servers) validan el token automáticamente: consultan el endpoint `/.well-known/jwks.json` del `auth-service` para obtener la clave pública y verificar la firma. No comparten secreto simétrico.
 
 ---
+### Base de datos compartida (simplificación académica)
+
+Aunque en una arquitectura de microservicios pura cada servicio debería tener su propia base de datos, por razones de simplicidad y tiempo usamos una única instancia MySQL. **Cada servicio accede solo a sus tablas**:
+- `auth-service` → tabla `personas` (solo lectura para login y escritura opcional si se implementa registro).
+- `user-service` → tabla `personas` (gestión completa de usuarios).
+- `order-service` → tablas `pedido`, `historial_movimiento`, `ubicacion`.
+
+No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un servicio necesita datos de otro (ej. `order-service` necesita el nombre del cliente), se hará mediante llamada a la API de `user-service` o se mantendrá una copia desnormalizada gestionada por eventos.
+
+---
 
 ## 🧰 Tecnologías utilizadas
 
@@ -178,7 +188,39 @@ Para detener los contenedores:
 ```bash
 docker compose down
 ```
+Ejemplo de docker-compose.yml con healthchecks
+yaml
+version: '3.8'
+services:
+  mysql-db:
+    image: mysql:8.0
+    environment:
+      MYSQL_DATABASE: tracking_db
+      MYSQL_ROOT_PASSWORD: rootpass
+    ports:
+      - "3306:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - pedidos-net
 
+  auth-service:
+    build: ./auth-service
+    ports:
+      - "8081:8080"
+    environment:
+      JWT_SECRET: ${JWT_SECRET}
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - pedidos-net
+
+  # user-service y order-service similares, con depends_on a mysql-db (service_healthy)
+  # api-gateway depende de auth-service, user-service, order-service
 ---
 
 ## 🧪 Pruebas con Postman
