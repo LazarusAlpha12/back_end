@@ -189,6 +189,7 @@ Para detener los contenedores:
 docker compose down
 ```
 Ejemplo de docker-compose.yml con healthchecks
+```
 yaml
 version: '3.8'
 services:
@@ -221,6 +222,7 @@ services:
 
   # user-service y order-service similares, con depends_on a mysql-db (service_healthy)
   # api-gateway depende de auth-service, user-service, order-service
+```
 ---
 
 ## 🧪 Pruebas con Postman
