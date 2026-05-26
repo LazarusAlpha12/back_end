@@ -9,6 +9,10 @@
 .classpath
 .project
 .settings/
+.sts4-cache
+.apt_generated
+.factorypath
+.springBeans
 
 # Logs
 *.log
@@ -25,3 +29,9 @@ Thumbs.db
 
 # Docker volumes (local data)
 data/
+
+# Maven wrapper (optional, si no quieres subir el wrapper JAR)
+.mvn/wrapper/maven-wrapper.jar
+HELP.md
+mvnw
+mvnw.cmd
