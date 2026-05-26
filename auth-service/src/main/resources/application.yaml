@@ -1,3 +1,25 @@
 spring:
   application:
     name: auth-service
+  datasource:
+    url: jdbc:mysql://localhost:3306/tracking_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: rootpass
+    driver-class-name: com.mysql.cj.jdbc.Driver
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.MySQLDialect
+        format_sql: true
+
+server:
+  port: 8081
+
+app:
+  jwt:
+    # Clave HMAC-SHA256: mínimo 256 bits (32 bytes). Cambiar en producción via variable de entorno.
+    secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+    expiration: 86400000  # 24 horas en milisegundos

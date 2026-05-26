@@ -1,6 +1,6 @@
-# 🚚 Backend de Seguimiento de Pedidos con Microservicios (OAuth 2.0)
+# 🚚 Backend de Seguimiento de Pedidos con Microservicios
 
-Este repositorio contiene la implementación del backend para un sistema de seguimiento de pedidos y rutas, construido sobre una arquitectura de **microservicios** con **Spring Boot**, **API Gateway** y **OAuth 2.0** (Spring Authorization Server). El frontend (React + Vite) se comunica exclusivamente con el API Gateway, que redirige las peticiones a los servicios correspondientes. La autenticación y autorización siguen el estándar OAuth 2.0 con JWT.
+Este repositorio contiene la implementación del backend para un sistema de seguimiento de pedidos y rutas, construido sobre una arquitectura de **microservicios** con **Spring Boot** y **API Gateway**. El frontend (React + Vite) se comunica exclusivamente con el API Gateway, que redirige las peticiones a los servicios correspondientes. La autenticación se basa en **JWT (JSON Web Tokens)** personalizados con firma HMAC-SHA256.
 
 ## 📌 Tabla de Contenidos
 
@@ -20,23 +20,23 @@ Este repositorio contiene la implementación del backend para un sistema de segu
 
 ## 🏗️ Arquitectura
 
-El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes microservicios, cada uno ejecutándose en su propio contenedor Docker. La seguridad se basa en **OAuth 2.0** con tokens JWT firmados mediante RSA (par de llaves pública/privada).
+El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes microservicios, cada uno ejecutándose en su propio contenedor Docker. La seguridad se basa en **JWT custom** firmado con HMAC-SHA256, utilizando una clave secreta compartida.
 
-| Servicio | Puerto interno | Rol OAuth 2.0 | Descripción |
+| Servicio | Puerto interno | Rol Seguridad | Descripción |
 |----------|----------------|---------------|-------------|
-| **auth-service** | 8081 | Authorization Server | Emite tokens JWT tras autenticar al cliente (frontend) mediante el flujo `client_credentials` o `authorization_code`. Expone endpoints `/oauth2/token`, `/.well-known/jwks.json`. |
-| **user-service** | 8082 | Resource Server | Gestiona usuarios y roles. Valida cada petición verificando el JWT contra el Authorization Server (vía `issuer-uri`). |
-| **order-service** | 8083 | Resource Server | Gestiona pedidos, historial y ubicaciones. También valida JWT como Resource Server. |
-| **api-gateway** | 8080 | Cliente OAuth 2.0 | Actúa como punto único de entrada. Se registra en `auth-service` como cliente (client-id y client-secret). Redirige peticiones y propaga el token. |
+| **auth-service** | 8081 | Emisor JWT | Emite tokens JWT tras autenticar al usuario (email/password). Expone endpoints `/auth/login` y `/auth/register`. |
+| **user-service** | 8082 | Resource Server | Gestiona usuarios y roles. Valida cada petición verificando la firma del JWT localmente con la clave secreta compartida. |
+| **order-service** | 8083 | Resource Server | Gestiona pedidos, historial y ubicaciones. También valida JWT localmente como Resource Server. |
+| **api-gateway** | 8080 | API Gateway | Actúa como punto único de entrada. Redirige peticiones y propaga el token JWT sin validarlo (la validación ocurre en los servicios). |
 | **mysql-db** | 3306 | — | Base de datos compartida (MySQL 8). Las tablas se crean automáticamente mediante Hibernate. |
 
 **Flujo de autenticación**:
 
-1. El frontend solicita un token a `/oauth2/token` del `auth-service` (con client-id y client-secret).
-2. El `auth-service` valida las credenciales y devuelve un JWT firmado con su clave privada.
+1. El frontend envía credenciales (email y password) al endpoint `/auth/login` del `auth-service`.
+2. El `auth-service` valida las credenciales contra la base de datos y devuelve un JWT firmado con su clave secreta HMAC-SHA256.
 3. El frontend incluye el token en cada petición al API Gateway (header `Authorization: Bearer <token>`).
 4. El gateway reenvía la petición al microservicio correspondiente.
-5. `user-service` y `order-service` (Resource Servers) validan el token automáticamente: consultan el endpoint `/.well-known/jwks.json` del `auth-service` para obtener la clave pública y verificar la firma. No comparten secreto simétrico.
+5. `user-service` y `order-service` validan el token automáticamente verificando la firma con la misma clave secreta (sin consultar al `auth-service`).
 
 ---
 ### Base de datos compartida (simplificación académica)
@@ -54,9 +54,8 @@ No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un s
 
 - **Java ver >= 17**
 - **Spring Boot 4.0.x**
-- **Spring Authorization Server** (para `auth-service`)
+- **Spring Security & JJWT 0.12.x** (para autenticación JWT)
 - **Spring Cloud Gateway** (API Gateway reactivo)
-- **Spring Security OAuth2 Resource Server** (para `user-service` y `order-service`)
 - **Spring Data JPA (Hibernate)**
 - **MySQL 8**
 - **Maven**
@@ -81,27 +80,27 @@ No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un s
 back_end/
 ├── auth-service/                 # Emisor de JWT (autenticación)
 │   ├── src/main/java/auth/
-│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register (opcional)
-│   │   ├── service/              # Lógica de negocio: AuthService (validar credenciales), JwtService (generar/validar tokens), UserDetailsService (cargar usuario)
-│   │   ├── repository/           # JPA repositorios: PersonaRepository (CRUD y consultas por email)
-│   │   ├── entity/               # Entidades JPA: Persona (id, email, password, rol, nombre, apellido, etc.)
-│   │   ├── dto/                  # Data Transfer Objects: LoginRequestDTO, LoginResponseDTO, RegisterRequestDTO (para no exponer entidades)
-│   │   ├── config/               # Clases de configuración: SecurityConfig (filtros, password encoder, rutas públicas), JwtAuthenticationFilter (intercepta y valida tokens en peticiones entrantes, aunque auth no necesita muchas)
-│   │   └── exception/            # Manejador global de excepciones: GlobalExceptionHandler (devuelve errores HTTP legibles, ej. 401, 400)
+│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register
+│   │   ├── service/              # Lógica de negocio: AuthService, JwtService, CustomUserDetailsService
+│   │   ├── repository/           # JPA repositorios: PersonaRepository
+│   │   ├── entity/               # Entidades JPA: Persona, enum Rol
+│   │   ├── dto/                  # DTOs: LoginRequest, LoginResponse, RegisterRequest
+│   │   ├── config/               # SecurityConfig (stateless, CORS, rutas públicas)
+│   │   └── exception/            # GlobalExceptionHandler (401, 409, 500)
 │   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
-│   └── pom.xml                   # Dependencias Maven: Spring Boot Starter Web, Security, Data JPA, MySQL Connector, JJWT, etc.
+│   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
 ├── user-service/                 # Resource Server (gestión de usuarios)
 │   ├── src/main/java/user/
-│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios), cambio de roles, etc.
-│   │   ├── service/              # Lógica de negocio: UsuarioService (crear, actualizar, eliminar, listar, asignar roles)
-│   │   ├── repository/           # PersonaRepository (acceso a base de datos de usuarios)
-│   │   ├── entity/               # Persona (puede tener más campos que la de auth, pero misma tabla compartida)
-│   │   ├── dto/                  # UsuarioRequestDTO (para crear/actualizar), UsuarioResponseDTO (para devolver datos sin password)
-│   │   ├── config/               # SecurityConfig: configurado como OAuth2 Resource Server con JWT (valida tokens usando la misma clave secreta o issuer-uri)
-│   │   └── exception/            # GlobalExceptionHandler (errores específicos, ej. 404 usuario no encontrado, 409 conflicto)
+│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios)
+│   │   ├── service/              # Lógica de negocio de usuarios
+│   │   ├── repository/           # PersonaRepository
+│   │   ├── entity/               # Persona (tabla compartida con auth-service)
+│   │   ├── dto/                  # DTOs de request/response
+│   │   ├── config/               # SecurityConfig (valida JWT usando la misma clave secreta)
+│   │   └── exception/            # Manejo de errores
 │   ├── Dockerfile
-│   └── pom.xml                   # Dependencias: Spring Boot Starter Web, Security, OAuth2 Resource Server, Data JPA, MySQL Connector
+│   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
 ├── order-service/                # Resource Server (pedidos, historial, ubicaciones)
 │   ├── src/main/java/order/
@@ -229,16 +228,22 @@ services:
 
 Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postman_collection.json`. El flujo de pruebas es:
 
-1. **Solicitar token** (sin necesidad de usuario/contraseña previo, se usa client credentials).
-2. **Usar token** para invocar endpoints de `user-service` y `order-service` a través del gateway.
+1. **Crear usuario** o **Iniciar sesión** (email y password) para obtener el JWT.
+2. **Usar token** para invocar endpoints protegidos a través del gateway o directo.
 
-### Solicitud de token (Authorization Server)
+### Solicitud de token (Login)
 
-- **URL**: `http://localhost:8081/oauth2/token`
+- **URL**: `http://localhost:8081/auth/login`
 - **Método**: POST
-- **Auth**: Basic Auth con `client-id` y `client-secret` (ej. `cliente-web` / `secreto-web`).
-- **Body**: `x-www-form-urlencoded` con `grant_type=client_credentials`.
-- **Respuesta**: contiene `access_token`. Copiar el token.
+- **Headers**: `Content-Type: application/json`
+- **Body** (Raw JSON): 
+  ```json
+  {
+    "email": "admin@test.com",
+    "password": "password123"
+  }
+  ```
+- **Respuesta**: contiene el `token` y datos del usuario. Copiar el token.
 
 ### Llamada a un endpoint protegido (Resource Server)
 
@@ -278,18 +283,18 @@ Render permite desplegar un `docker-compose.yml` como Blueprint. Pasos:
 
 ```mermaid
 graph TD
-    Client[Frontend React] -->|OAuth 2.0 token request| Auth[auth-service :8081]
-    Client -->|API calls con token| Gateway[API Gateway :8080]
+    Client[Frontend React] -->|POST /auth/login| Auth[auth-service :8081]
+    Client -->|API calls con Bearer token| Gateway[API Gateway :8080]
     Gateway -->|/api/usuarios/**| User[user-service :8082]
     Gateway -->|/api/pedidos/**| Order[order-service :8083]
     Auth --> DB[(MySQL :3306)]
     User --> DB
     Order --> DB
-    User -.->|JWKS validation| Auth
-    Order -.->|JWKS validation| Auth
+    User -.->|Local Secret Validation| JWT_Secret((Shared Secret))
+    Order -.->|Local Secret Validation| JWT_Secret
 ```
 
-Las líneas punteadas indican que los Resource Servers consultan el endpoint `/.well-known/jwks.json` del Authorization Server al iniciar (y periódicamente) para obtener la clave pública.
+Los Resource Servers validan el JWT de forma local y stateless utilizando la misma clave secreta (HMAC-SHA256) configurada en sus archivos `application.yaml`, sin necesidad de comunicarse con el `auth-service`.
 
 ---
 
@@ -326,9 +331,9 @@ También se incluye el archivo de colección exportado `PedidosTracking_OAuth2.p
 
 ## 🧠 Buenas prácticas aplicadas
 
-- **Estándar OAuth 2.0** – Authorization Server y Resource Servores claramente separados.
-- **Validación de tokens sin estado** – Los Resource Servers validan localmente mediante clave pública.
-- **API Gateway como cliente OAuth** – Centraliza la obtención del token (si el frontend no lo hace directamente).
+- **Autenticación Stateless** – Uso de JWT para evitar manejo de sesiones en servidor.
+- **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al auth-service.
+- **Separación de responsabilidades** – Cada microservicio maneja su propio dominio de datos.
 - **Optimistic locking** (`@Version`) en entidades `Pedido`.
 - **Contenerización** con Docker Compose.
 - **Manejo global de excepciones** (`@RestControllerAdvice`).
