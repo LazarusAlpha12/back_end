@@ -8,7 +8,7 @@ services:
     ports:
       - "3306:3306"
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -32,12 +32,19 @@ services:
     depends_on:
       mysql-db:
         condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./auth-service
+          target: /app/src
+        - action: rebuild
+          path: ./auth-service/pom.xml
     networks:
       - pedidos-net
 
   # ── SERVICIOS PENDIENTES DE IMPLEMENTACIÓN ──
   # Descomentaremos estos servicios a medida que los vayamos implementando
-  
+
   # user-service:
   #   build: ./user-service
   #   container_name: user-service
@@ -48,18 +55,25 @@ services:
   #       condition: service_healthy
   #   networks:
   #     - pedidos-net
-  #
-  # order-service:
-  #   build: ./order-service
-  #   container_name: order-service
-  #   ports:
-  #     - "8083:8083"
-  #   depends_on:
-  #     mysql-db:
-  #       condition: service_healthy
-  #   networks:
-  #     - pedidos-net
-  #
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    ports:
+      - "8083:8083"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./order-service
+          target: /app/src
+        - action: rebuild
+          path: ./order-service/pom.xml
+    networks:
+      - pedidos-net
+
   # api-gateway:
   #   build: ./api-gateway
   #   container_name: api-gateway
@@ -67,6 +81,13 @@ services:
   #     - "8080:8080"
   #   depends_on:
   #     - auth-service
+  #   develop:
+  #     watch:
+  #       - action: sync+restart
+  #         path: ./order-service
+  #         target: /app/src
+  #       - action: rebuild
+  #         path: ./order-service/pom.xml
   #   networks:
   #     - pedidos-net
 
