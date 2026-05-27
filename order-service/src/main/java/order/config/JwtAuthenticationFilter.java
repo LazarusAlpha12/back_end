@@ -19,6 +19,10 @@ import order.service.JwtService;
 @Component
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
+    /*
+    Uso esta clase para autenticar en el filtro
+    la validez del token como el rol al que este compete
+    */
     @Autowired
     private JwtService jwtService;
 
@@ -32,7 +36,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             try {
                 // Extraer email del token (sin necesidad de validar contra BD)
                 String email = jwtService.extractEmail(token);
-                if (email != null && !jwtService.isTokenValid(token, email)) {
+                if (email != null && jwtService.isTokenValid(token, email)) {
                     // Extraer rol del token (usando jwtService)
                     String rol = (String) jwtService.extractClaim(token, claims -> claims.get("rol"));
                     UsernamePasswordAuthenticationToken auth =
