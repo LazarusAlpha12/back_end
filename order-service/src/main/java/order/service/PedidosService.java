@@ -76,6 +76,7 @@ public class PedidosService {
         if (!personaRepositorio.existsById(request.getClienteId())) {
             throw new RuntimeException("Cliente no encontrado");
         }
+
         // Crear entidad
         Pedido pedido = new Pedido();
         pedido.setOrigen(request.getOrigen());
@@ -85,6 +86,7 @@ public class PedidosService {
         pedido.setEstado(EstadoPedido.PENDIENTE);
         pedido.setFechaCreacion(LocalDateTime.now());
         Pedido saved = pedidoRepositorio.save(pedido);
+
         // Registrar evento de historial
         Historial evento = new Historial();
         evento.setPedido(saved);
@@ -188,7 +190,7 @@ public class PedidosService {
         evento.setObservacion("Asignado a repartidor ID: " + repartidorId);
         evento.setFechaHora(LocalDateTime.now());
         historialRepositorio.save(evento);
-        
+
         return convertirADTO(updated);
 
     }
