@@ -1,9 +1,11 @@
 package order.dto;
 
+
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import order.entity.EstadoPedido;
 
 @Getter
 @Setter
@@ -14,7 +16,7 @@ public class PedidoUpdateDTO {
     private String origen;
     private String destino;
     private String descripcion;
-    private String estado;     // solo ciertos roles pueden cambiar estado
+    private EstadoPedido estado;     // solo ciertos roles pueden cambiar estado
     private Long repartidorId; // para asignar repartidor
     private Long clienteId;
 }
