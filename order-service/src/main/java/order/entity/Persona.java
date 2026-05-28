@@ -6,6 +6,7 @@ import jakarta.persistence.Table;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
+//Estrictamente, solo para realizar lecturas
 @Entity
 @Table(name = "personas")
 @Data
