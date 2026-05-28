@@ -16,4 +16,5 @@ public class PedidoUpdateDTO {
     private String descripcion;
     private String estado;     // solo ciertos roles pueden cambiar estado
     private Long repartidorId; // para asignar repartidor
+    private Long clienteId;
 }

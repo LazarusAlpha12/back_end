@@ -3,6 +3,7 @@ package order.repository;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -60,5 +61,6 @@ public interface PedidoRepositorio extends JpaRepository<Pedido, Long>{
       @Param("fechaHasta") LocalDate fechaHasta,
       @Param("horaDesde") LocalTime horaDesde,
       @Param("horaHasta") LocalTime horaHasta,
+      @Param("pedidoIds") Set<Long> pedidoIds,
       Pageable pageable);
 }

@@ -1,13 +1,19 @@
 package order.service;
 
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.LocalTime;
+import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 
 import jakarta.transaction.Transactional;
 import order.dto.PedidoRequestDTO;
 import order.dto.PedidoResponseDTO;
+import order.dto.PedidoUpdateDTO;
 import order.entity.EstadoPedido;
 import order.entity.Historial;
 import order.entity.Pedido;
@@ -77,11 +83,49 @@ public class PedidosService {
         evento.setTipoEvento("CREADO");
         evento.setEstado(saved.getEstado());
         evento.setFechaHora(LocalDateTime.now());
-        // Obtener operadorId desde el contexto de seguridad (si quieres guardarlo)
+        //Obtener operadorId desde el contexto de seguridad (si quieres guardarlo)
         //evento.setOperadorId(obtenerIdUsuarioActual());
         historialRepositorio.save(evento);
         return convertirADTO(saved);
     }
 
+    public Page<PedidoResponseDTO> listarPedidos(
+        
+        String estado, Long clienteId, Long repartidorId, Long id,
+        LocalDate fechaDesde, LocalDate fechaHasta,
+        LocalTime horaDesde, LocalTime horaHasta,
+        String ubicacion, Pageable pageable) {
 
+            Set<Long> pedidoIds = null;
+
+            if (ubicacion != null && !ubicacion.isBlank()) {
+                pedidoIds = historialRepositorio.findPedidoIdsByUbicacionContaining(ubicacion);
+                if (pedidoIds.isEmpty()) {
+                    return Page.empty(pageable);
+                }
+            }
+
+            return pedidoRepositorio.buscarConFiltros(
+                estado, clienteId, repartidorId, id,
+                fechaDesde, fechaHasta, horaDesde, horaHasta,
+                pedidoIds, pageable);
+    }
+
+
+    public PedidoResponseDTO obtenerPedido(Long id) {
+        Pedido pedido = pedidoRepositorio.findById(id)
+            .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+        return convertirADTO(pedido);
+    }
+
+    public PedidoResponseDTO actualizarPedido(Long id, PedidoUpdateDTO dto) {
+        Pedido pedido = pedidoRepositorio.findById(id)
+            .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+        if (dto.getOrigen() != null) pedido.setOrigen(dto.getOrigen());
+        if (dto.getDestino() != null) pedido.setDestino(dto.getDestino());
+        if (dto.getDescripcion() != null) pedido.setDescripcion(dto.getDescripcion());
+        Pedido updated = pedidoRepositorio.save(pedido);
+        // Opcional: registrar evento en historial
+        return convertirADTO(updated);
+    }
 }
