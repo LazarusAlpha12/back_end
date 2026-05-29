@@ -33,10 +33,13 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 **Flujo de autenticación**:
 
 1. El frontend envía credenciales (email y password) al endpoint `/auth/login` del `auth-service`.
-2. El `auth-service` valida las credenciales contra la base de datos y devuelve un JWT firmado con su clave secreta HMAC-SHA256.
+2. El `auth-service` valida las credenciales contra la base de datos y devuelve un JWT firmado con su clave secreta HMAC-SHA256. El token incluye un identificador único (`jti`) para permitir su revocación individual.
 3. El frontend incluye el token en cada petición al API Gateway (header `Authorization: Bearer <token>`).
 4. El gateway reenvía la petición al microservicio correspondiente.
 5. `user-service` y `order-service` validan el token automáticamente verificando la firma con la misma clave secreta (sin consultar al `auth-service`).
+6. Al cerrar sesión, el frontend envía `POST /auth/logout` con el token. El `auth-service` registra el `jti` en la tabla `token_blacklist` — el token queda revocado de inmediato aunque aún no haya expirado.
+
+**Duración de los tokens**: 8 horas desde el login. Pueden invalidarse antes haciendo logout.
 
 ---
 ### Base de datos compartida (simplificación académica)
@@ -80,12 +83,13 @@ No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un s
 back_end/
 ├── auth-service/                 # Emisor de JWT (autenticación)
 │   ├── src/main/java/auth/
-│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register
+│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register, POST /auth/logout
 │   │   ├── service/              # Lógica de negocio: AuthService, JwtService, CustomUserDetailsService
-│   │   ├── repository/           # JPA repositorios: PersonaRepository
-│   │   ├── entity/               # Entidades JPA: Persona, enum Rol
+│   │   ├── repository/           # JPA repositorios: PersonaRepository, TokenBlacklistRepository
+│   │   ├── entity/               # Entidades JPA: Persona, enum Rol, TokenBlacklist
 │   │   ├── dto/                  # DTOs: LoginRequest, LoginResponse, RegisterRequest
-│   │   ├── config/               # SecurityConfig (stateless, CORS, rutas públicas)
+│   │   ├── config/               # SecurityConfig, JwtAuthenticationFilter (verifica blacklist)
+│   │   ├── scheduled/            # TokenCleanupTask: limpieza automática de tokens expirados (cada hora)
 │   │   └── exception/            # GlobalExceptionHandler (401, 409, 500)
 │   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
@@ -163,19 +167,23 @@ Cada microservicio sigue el patrón Controller → Service → Repository → En
    ```
 
 5. **Obtener un token JWT** (para probar desde Postman)
-   - El Authorization Server expone el endpoint:
+   - El `auth-service` expone el endpoint:
      ```
-     POST http://localhost:8081/oauth2/token
+     POST http://localhost:8081/auth/login
      ```
-   - Utiliza autenticación **Basic Auth** (client-id / client-secret) definida en la configuración de `auth-service`.
-   - Envía el parámetro `grant_type=client_credentials`.
+   - Body (JSON):
+     ```json
+     { "email": "admin@test.com", "password": "password123" }
+     ```
 
    Respuesta:
    ```json
    {
-     "access_token": "eyJraWQ...",
-     "token_type": "Bearer",
-     "expires_in": 3599
+     "token": "eyJhbGc...",
+     "id": 1,
+     "nombre": "Admin",
+     "email": "admin@test.com",
+     "rol": "Administrador"
    }
    ```
 
@@ -253,13 +261,23 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
 
 Esperar respuesta `200 OK` con lista de pedidos (vacía al principio).
 
+### Cerrar sesión (Logout)
+
+- **URL**: `http://localhost:8081/auth/logout`
+- **Método**: POST
+- **Headers**: `Authorization: Bearer <token>`
+- **Respuesta**: `200 OK` → `{ "message": "Sesión cerrada correctamente" }`
+
+El token queda revocado inmediatamente. Cualquier petición posterior con ese token devuelve `401 Token revocado`, aunque el token todavía no haya expirado.
+
 ### Validación de errores
 
 - Token inválido o ausente → `401 Unauthorized`
 - Token expirado → `401 Unauthorized`
+- Token revocado (logout previo) → `401 Token revocado`
 - Rol insuficiente (si se implementa) → `403 Forbidden`
 
-Los tiempos de respuesta se mantienen por debajo de 2 segundos (RNF4) gracias a la validación local de JWT en los Resource Servers (sin llamadas al Authorization Server en cada petición).
+Los tiempos de respuesta se mantienen por debajo de 2 segundos gracias a la validación local de JWT en los Resource Servers (sin llamadas al `auth-service` en cada petición).
 
 ---
 
@@ -270,8 +288,7 @@ Render permite desplegar un `docker-compose.yml` como Blueprint. Pasos:
 1. Subir el repositorio a GitHub.
 2. En Render, crear un nuevo **Blueprint** y conectar el repo.
 3. Asegurarse de configurar las siguientes variables de entorno:
-   - `JWT_PRIVATE_KEY` y `JWT_PUBLIC_KEY` (pueden generarse con OpenSSL).
-   - `CLIENT_ID`, `CLIENT_SECRET` (para el cliente OAuth del gateway).
+   - `APP_JWT_SECRET` — clave HMAC-SHA256 (mínimo 256 bits). Debe ser la misma en todos los servicios que validen tokens.
 4. Render construirá y levantará los contenedores automáticamente.
 5. Actualizar el frontend para que apunte a la URL pública de Render (puerto 8080).
 
@@ -332,7 +349,8 @@ También se incluye el archivo de colección exportado `PedidosTracking_OAuth2.p
 ## 🧠 Buenas prácticas aplicadas
 
 - **Autenticación Stateless** – Uso de JWT para evitar manejo de sesiones en servidor.
-- **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al auth-service.
+- **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al `auth-service`.
+- **Revocación de tokens (Blacklist)** – El `jti` (JWT ID) único en cada token permite invalidarlo al hacer logout. La tabla `token_blacklist` en MySQL actúa como blacklist compartida entre todos los servicios. Los tokens expirados se eliminan automáticamente cada hora (`@Scheduled`).
 - **Separación de responsabilidades** – Cada microservicio maneja su propio dominio de datos.
 - **Optimistic locking** (`@Version`) en entidades `Pedido`.
 - **Contenerización** con Docker Compose.
