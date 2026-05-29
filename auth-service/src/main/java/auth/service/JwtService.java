@@ -9,7 +9,11 @@ import org.springframework.stereotype.Service;
 
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.util.Date;
+import java.util.UUID;
 import java.util.function.Function;
 
 /**
@@ -32,10 +36,11 @@ public class JwtService {
 
     /**
      * Genera un JWT firmado con HMAC-SHA256.
-     * Claims incluidos: sub (email), id, nombre, rol (string del frontend).
+     * Claims incluidos: sub (email), id, nombre, rol (string del frontend), jti (UUID único).
      */
     public String generateToken(Persona persona) {
         return Jwts.builder()
+                .id(UUID.randomUUID().toString()) // jti — permite revocación individual
                 .subject(persona.getEmail())
                 .claim("id", persona.getId())
                 .claim("nombre", persona.getNombre())
@@ -64,6 +69,15 @@ public class JwtService {
 
     public String extractEmail(String token) {
         return extractClaim(token, Claims::getSubject);
+    }
+
+    public String extractJti(String token) {
+        return extractClaim(token, Claims::getId);
+    }
+
+    public LocalDateTime extractExpiration(String token) {
+        Date exp = extractClaim(token, Claims::getExpiration);
+        return Instant.ofEpochMilli(exp.getTime()).atZone(ZoneId.systemDefault()).toLocalDateTime();
     }
 
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
