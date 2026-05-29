@@ -22,3 +22,4 @@ EXPOSE 8081
 
 # Ejecutar la aplicación
 ENTRYPOINT ["java", "-jar", "app.jar"]
+   
