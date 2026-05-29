@@ -45,11 +45,67 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 ### Base de datos compartida (simplificación académica)
 
 Aunque en una arquitectura de microservicios pura cada servicio debería tener su propia base de datos, por razones de simplicidad y tiempo usamos una única instancia MySQL. **Cada servicio accede solo a sus tablas**:
-- `auth-service` → tabla `personas` (solo lectura para login y escritura opcional si se implementa registro).
+- `auth-service` → tablas `personas`, `repartidores`, `operadores_logisticos`, `token_blacklist`.
 - `user-service` → tabla `personas` (gestión completa de usuarios).
-- `order-service` → tablas `pedido`, `historial_movimiento`, `ubicacion`.
+- `order-service` → tablas `pedidos`, `historial_movimiento`, `ubicaciones`.
 
 No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un servicio necesita datos de otro (ej. `order-service` necesita el nombre del cliente), se hará mediante llamada a la API de `user-service` o se mantendrá una copia desnormalizada gestionada por eventos.
+
+### Esquema de base de datos
+
+El modelo usa una tabla principal `personas` con **tablas de extensión** para los roles que tienen datos propios adicionales:
+
+```
+personas (tabla principal — todos los usuarios)
+├── id           BIGINT PK AUTO_INCREMENT
+├── nombre       VARCHAR(255) NOT NULL
+├── apellido     VARCHAR(255)
+├── email        VARCHAR(255) UNIQUE NOT NULL
+├── password     VARCHAR(255) NOT NULL  ← BCrypt hash
+└── rol          VARCHAR(255) NOT NULL  ← ADMINISTRADOR | OPERADOR_LOGISTICO | REPARTIDOR | CLIENTE
+
+repartidores (extensión — solo repartidores)
+├── persona_id   BIGINT PK FK → personas.id
+├── capacidad    INT NOT NULL
+└── disponibilidad BOOLEAN NOT NULL DEFAULT true
+
+operadores_logisticos (extensión — solo operadores)
+├── persona_id   BIGINT PK FK → personas.id
+└── admin_id     BIGINT FK → personas.id  ← admin que supervisa al operador
+
+token_blacklist (tokens revocados por logout)
+├── jti          VARCHAR(36) PK  ← UUID del JWT
+└── expires_at   DATETIME NOT NULL
+
+pedidos
+├── id            BIGINT PK AUTO_INCREMENT
+├── version       INT  ← optimistic locking
+├── origen        VARCHAR(255) NOT NULL
+├── destino       VARCHAR(255) NOT NULL
+├── descripcion   VARCHAR(255) NOT NULL
+├── estado        VARCHAR(255) NOT NULL  ← PENDIENTE | ASIGNADO | EN_TRANSITO | ENTREGADO | CANCELADO
+├── cliente_id    BIGINT NOT NULL
+├── repartidor_id BIGINT
+└── fecha_creacion DATETIME NOT NULL
+
+historial_movimiento
+├── id           BIGINT PK AUTO_INCREMENT
+├── pedido_id    BIGINT NOT NULL FK → pedidos.id
+├── ubicacion_id BIGINT FK → ubicaciones.id
+├── operador_id  BIGINT
+├── tipo_evento  VARCHAR(50) NOT NULL  ← CREADO | ESTADO_CAMBIADO | ASIGNADO | UBICACION_ACTUALIZADA
+├── estado       VARCHAR(255) NOT NULL
+├── observacion  VARCHAR(255)
+└── fecha_hora   DATETIME NOT NULL
+
+ubicaciones
+├── id            BIGINT PK AUTO_INCREMENT
+├── direccion     VARCHAR(255) NOT NULL
+├── ubicacion_lat DOUBLE
+└── ubicacion_lng DOUBLE
+```
+
+Hibernate genera y actualiza estas tablas automáticamente (`ddl-auto: update`) al arrancar cada servicio.
 
 ---
 
@@ -85,8 +141,8 @@ back_end/
 │   ├── src/main/java/auth/
 │   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register, POST /auth/logout
 │   │   ├── service/              # Lógica de negocio: AuthService, JwtService, CustomUserDetailsService
-│   │   ├── repository/           # JPA repositorios: PersonaRepository, TokenBlacklistRepository
-│   │   ├── entity/               # Entidades JPA: Persona, enum Rol, TokenBlacklist
+│   │   ├── repository/           # PersonaRepository, RepartidorRepository, OperadorLogisticoRepository, TokenBlacklistRepository
+│   │   ├── entity/               # Persona, Repartidor, OperadorLogistico, enum Rol, TokenBlacklist
 │   │   ├── dto/                  # DTOs: LoginRequest, LoginResponse, RegisterRequest
 │   │   ├── config/               # SecurityConfig, JwtAuthenticationFilter (verifica blacklist)
 │   │   ├── scheduled/            # TokenCleanupTask: limpieza automática de tokens expirados (cada hora)
@@ -252,6 +308,43 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
   }
   ```
 - **Respuesta**: contiene el `token` y datos del usuario. Copiar el token.
+
+### Registro de usuarios (por rol)
+
+- **URL**: `http://localhost:8081/auth/register`
+- **Método**: POST
+
+**Administrador o Cliente** (sin campos extra):
+```json
+{
+  "nombre": "Admin", "apellido": "Principal",
+  "email": "admin@test.com", "password": "pass123",
+  "rol": "ADMINISTRADOR"
+}
+```
+
+**Repartidor** (`capacidad` obligatorio, `disponibilidad` opcional — default `true`):
+```json
+{
+  "nombre": "Carlos", "apellido": "López",
+  "email": "carlos@test.com", "password": "pass123",
+  "rol": "REPARTIDOR",
+  "capacidad": 10,
+  "disponibilidad": true
+}
+```
+
+**Operador Logístico** (`adminId` obligatorio — debe ser ID de un administrador existente):
+```json
+{
+  "nombre": "Ana", "apellido": "Gómez",
+  "email": "ana@test.com", "password": "pass123",
+  "rol": "OPERADOR_LOGISTICO",
+  "adminId": 1
+}
+```
+
+Errores comunes: `400` si falta `capacidad` en un repartidor, o si `adminId` no existe o no es administrador.
 
 ### Llamada a un endpoint protegido (Resource Server)
 

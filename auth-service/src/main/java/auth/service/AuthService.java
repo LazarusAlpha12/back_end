@@ -3,9 +3,14 @@ package auth.service;
 import auth.dto.LoginRequest;
 import auth.dto.LoginResponse;
 import auth.dto.RegisterRequest;
+import auth.entity.OperadorLogistico;
 import auth.entity.Persona;
+import auth.entity.Repartidor;
+import auth.entity.Rol;
 import auth.entity.TokenBlacklist;
+import auth.repository.OperadorLogisticoRepository;
 import auth.repository.PersonaRepository;
+import auth.repository.RepartidorRepository;
 import auth.repository.TokenBlacklistRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -24,17 +29,23 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
     private final TokenBlacklistRepository blacklistRepository;
+    private final RepartidorRepository repartidorRepository;
+    private final OperadorLogisticoRepository operadorRepository;
 
     public AuthService(PersonaRepository personaRepository,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
                        PasswordEncoder passwordEncoder,
-                       TokenBlacklistRepository blacklistRepository) {
+                       TokenBlacklistRepository blacklistRepository,
+                       RepartidorRepository repartidorRepository,
+                       OperadorLogisticoRepository operadorRepository) {
         this.personaRepository = personaRepository;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.passwordEncoder = passwordEncoder;
         this.blacklistRepository = blacklistRepository;
+        this.repartidorRepository = repartidorRepository;
+        this.operadorRepository = operadorRepository;
     }
 
     // ── Login ──────────────────────────────────────────────────────────────────
@@ -74,14 +85,30 @@ public class AuthService {
                 request.nombre(),
                 request.apellido(),
                 request.email(),
-                passwordEncoder.encode(request.password()), // BCrypt
+                passwordEncoder.encode(request.password()),
                 request.rol()
         );
-
         personaRepository.save(persona);
 
-        String token = jwtService.generateToken(persona);
+        // Guardar datos de extensión según el rol
+        if (request.rol() == Rol.REPARTIDOR) {
+            if (request.capacidad() == null) {
+                throw new IllegalArgumentException("El campo 'capacidad' es obligatorio para repartidores");
+            }
+            repartidorRepository.save(new Repartidor(persona, request.capacidad(), request.disponibilidad()));
+        }
 
+        if (request.rol() == Rol.OPERADOR_LOGISTICO) {
+            if (request.adminId() == null) {
+                throw new IllegalArgumentException("El campo 'adminId' es obligatorio para operadores logísticos");
+            }
+            Persona admin = personaRepository.findById(request.adminId())
+                    .filter(p -> p.getRol() == Rol.ADMINISTRADOR)
+                    .orElseThrow(() -> new IllegalArgumentException("El adminId no corresponde a un administrador válido"));
+            operadorRepository.save(new OperadorLogistico(persona, admin));
+        }
+
+        String token = jwtService.generateToken(persona);
         return buildResponse(token, persona);
     }
 
