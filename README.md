@@ -33,20 +33,79 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 **Flujo de autenticación**:
 
 1. El frontend envía credenciales (email y password) al endpoint `/auth/login` del `auth-service`.
-2. El `auth-service` valida las credenciales contra la base de datos y devuelve un JWT firmado con su clave secreta HMAC-SHA256.
+2. El `auth-service` valida las credenciales contra la base de datos y devuelve un JWT firmado con su clave secreta HMAC-SHA256. El token incluye un identificador único (`jti`) para permitir su revocación individual.
 3. El frontend incluye el token en cada petición al API Gateway (header `Authorization: Bearer <token>`).
 4. El gateway reenvía la petición al microservicio correspondiente.
 5. `user-service` y `order-service` validan el token automáticamente verificando la firma con la misma clave secreta (sin consultar al `auth-service`).
+6. Al cerrar sesión, el frontend envía `POST /auth/logout` con el token. El `auth-service` registra el `jti` en la tabla `token_blacklist` — el token queda revocado de inmediato aunque aún no haya expirado.
+
+**Duración de los tokens**: 8 horas desde el login. Pueden invalidarse antes haciendo logout.
 
 ---
 ### Base de datos compartida (simplificación académica)
 
 Aunque en una arquitectura de microservicios pura cada servicio debería tener su propia base de datos, por razones de simplicidad y tiempo usamos una única instancia MySQL. **Cada servicio accede solo a sus tablas**:
-- `auth-service` → tabla `personas` (solo lectura para login y escritura opcional si se implementa registro).
+- `auth-service` → tablas `personas`, `repartidores`, `operadores_logisticos`, `token_blacklist`.
 - `user-service` → tabla `personas` (gestión completa de usuarios).
-- `order-service` → tablas `pedido`, `historial_movimiento`, `ubicacion`.
+- `order-service` → tablas `pedidos`, `historial_movimiento`, `ubicaciones`.
 
 No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un servicio necesita datos de otro (ej. `order-service` necesita el nombre del cliente), se hará mediante llamada a la API de `user-service` o se mantendrá una copia desnormalizada gestionada por eventos.
+
+### Esquema de base de datos
+
+El modelo usa una tabla principal `personas` con **tablas de extensión** para los roles que tienen datos propios adicionales:
+
+```
+personas (tabla principal — todos los usuarios)
+├── id           BIGINT PK AUTO_INCREMENT
+├── nombre       VARCHAR(255) NOT NULL
+├── apellido     VARCHAR(255)
+├── email        VARCHAR(255) UNIQUE NOT NULL
+├── password     VARCHAR(255) NOT NULL  ← BCrypt hash
+└── rol          VARCHAR(255) NOT NULL  ← ADMINISTRADOR | OPERADOR_LOGISTICO | REPARTIDOR | CLIENTE
+
+repartidores (extensión — solo repartidores)
+├── persona_id   BIGINT PK FK → personas.id
+├── capacidad    INT NOT NULL
+└── disponibilidad BOOLEAN NOT NULL DEFAULT true
+
+operadores_logisticos (extensión — solo operadores)
+├── persona_id   BIGINT PK FK → personas.id
+└── admin_id     BIGINT FK → personas.id  ← admin que supervisa al operador
+
+token_blacklist (tokens revocados por logout)
+├── jti          VARCHAR(36) PK  ← UUID del JWT
+└── expires_at   DATETIME NOT NULL
+
+pedidos
+├── id            BIGINT PK AUTO_INCREMENT
+├── version       INT  ← optimistic locking
+├── origen        VARCHAR(255) NOT NULL
+├── destino       VARCHAR(255) NOT NULL
+├── descripcion   VARCHAR(255) NOT NULL
+├── estado        VARCHAR(255) NOT NULL  ← PENDIENTE | ASIGNADO | EN_TRANSITO | ENTREGADO | CANCELADO
+├── cliente_id    BIGINT NOT NULL
+├── repartidor_id BIGINT
+└── fecha_creacion DATETIME NOT NULL
+
+historial_movimiento
+├── id           BIGINT PK AUTO_INCREMENT
+├── pedido_id    BIGINT NOT NULL FK → pedidos.id
+├── ubicacion_id BIGINT FK → ubicaciones.id
+├── operador_id  BIGINT
+├── tipo_evento  VARCHAR(50) NOT NULL  ← CREADO | ESTADO_CAMBIADO | ASIGNADO | UBICACION_ACTUALIZADA
+├── estado       VARCHAR(255) NOT NULL
+├── observacion  VARCHAR(255)
+└── fecha_hora   DATETIME NOT NULL
+
+ubicaciones
+├── id            BIGINT PK AUTO_INCREMENT
+├── direccion     VARCHAR(255) NOT NULL
+├── ubicacion_lat DOUBLE
+└── ubicacion_lng DOUBLE
+```
+
+Hibernate genera y actualiza estas tablas automáticamente (`ddl-auto: update`) al arrancar cada servicio.
 
 ---
 
@@ -80,12 +139,13 @@ No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un s
 back_end/
 ├── auth-service/                 # Emisor de JWT (autenticación)
 │   ├── src/main/java/auth/
-│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register
+│   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register, POST /auth/logout
 │   │   ├── service/              # Lógica de negocio: AuthService, JwtService, CustomUserDetailsService
-│   │   ├── repository/           # JPA repositorios: PersonaRepository
-│   │   ├── entity/               # Entidades JPA: Persona, enum Rol
+│   │   ├── repository/           # PersonaRepository, RepartidorRepository, OperadorLogisticoRepository, TokenBlacklistRepository
+│   │   ├── entity/               # Persona, Repartidor, OperadorLogistico, enum Rol, TokenBlacklist
 │   │   ├── dto/                  # DTOs: LoginRequest, LoginResponse, RegisterRequest
-│   │   ├── config/               # SecurityConfig (stateless, CORS, rutas públicas)
+│   │   ├── config/               # SecurityConfig, JwtAuthenticationFilter (verifica blacklist)
+│   │   ├── scheduled/            # TokenCleanupTask: limpieza automática de tokens expirados (cada hora)
 │   │   └── exception/            # GlobalExceptionHandler (401, 409, 500)
 │   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
@@ -163,19 +223,23 @@ Cada microservicio sigue el patrón Controller → Service → Repository → En
    ```
 
 5. **Obtener un token JWT** (para probar desde Postman)
-   - El Authorization Server expone el endpoint:
+   - El `auth-service` expone el endpoint:
      ```
-     POST http://localhost:8081/oauth2/token
+     POST http://localhost:8081/auth/login
      ```
-   - Utiliza autenticación **Basic Auth** (client-id / client-secret) definida en la configuración de `auth-service`.
-   - Envía el parámetro `grant_type=client_credentials`.
+   - Body (JSON):
+     ```json
+     { "email": "admin@test.com", "password": "password123" }
+     ```
 
    Respuesta:
    ```json
    {
-     "access_token": "eyJraWQ...",
-     "token_type": "Bearer",
-     "expires_in": 3599
+     "token": "eyJhbGc...",
+     "id": 1,
+     "nombre": "Admin",
+     "email": "admin@test.com",
+     "rol": "Administrador"
    }
    ```
 
@@ -245,6 +309,43 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
   ```
 - **Respuesta**: contiene el `token` y datos del usuario. Copiar el token.
 
+### Registro de usuarios (por rol)
+
+- **URL**: `http://localhost:8081/auth/register`
+- **Método**: POST
+
+**Administrador o Cliente** (sin campos extra):
+```json
+{
+  "nombre": "Admin", "apellido": "Principal",
+  "email": "admin@test.com", "password": "pass123",
+  "rol": "ADMINISTRADOR"
+}
+```
+
+**Repartidor** (`capacidad` obligatorio, `disponibilidad` opcional — default `true`):
+```json
+{
+  "nombre": "Carlos", "apellido": "López",
+  "email": "carlos@test.com", "password": "pass123",
+  "rol": "REPARTIDOR",
+  "capacidad": 10,
+  "disponibilidad": true
+}
+```
+
+**Operador Logístico** (`adminId` obligatorio — debe ser ID de un administrador existente):
+```json
+{
+  "nombre": "Ana", "apellido": "Gómez",
+  "email": "ana@test.com", "password": "pass123",
+  "rol": "OPERADOR_LOGISTICO",
+  "adminId": 1
+}
+```
+
+Errores comunes: `400` si falta `capacidad` en un repartidor, o si `adminId` no existe o no es administrador.
+
 ### Llamada a un endpoint protegido (Resource Server)
 
 - **URL**: `http://localhost:8080/api/pedidos` (pasa por el gateway)
@@ -253,13 +354,23 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
 
 Esperar respuesta `200 OK` con lista de pedidos (vacía al principio).
 
+### Cerrar sesión (Logout)
+
+- **URL**: `http://localhost:8081/auth/logout`
+- **Método**: POST
+- **Headers**: `Authorization: Bearer <token>`
+- **Respuesta**: `200 OK` → `{ "message": "Sesión cerrada correctamente" }`
+
+El token queda revocado inmediatamente. Cualquier petición posterior con ese token devuelve `401 Token revocado`, aunque el token todavía no haya expirado.
+
 ### Validación de errores
 
 - Token inválido o ausente → `401 Unauthorized`
 - Token expirado → `401 Unauthorized`
+- Token revocado (logout previo) → `401 Token revocado`
 - Rol insuficiente (si se implementa) → `403 Forbidden`
 
-Los tiempos de respuesta se mantienen por debajo de 2 segundos (RNF4) gracias a la validación local de JWT en los Resource Servers (sin llamadas al Authorization Server en cada petición).
+Los tiempos de respuesta se mantienen por debajo de 2 segundos gracias a la validación local de JWT en los Resource Servers (sin llamadas al `auth-service` en cada petición).
 
 ---
 
@@ -270,8 +381,7 @@ Render permite desplegar un `docker-compose.yml` como Blueprint. Pasos:
 1. Subir el repositorio a GitHub.
 2. En Render, crear un nuevo **Blueprint** y conectar el repo.
 3. Asegurarse de configurar las siguientes variables de entorno:
-   - `JWT_PRIVATE_KEY` y `JWT_PUBLIC_KEY` (pueden generarse con OpenSSL).
-   - `CLIENT_ID`, `CLIENT_SECRET` (para el cliente OAuth del gateway).
+   - `APP_JWT_SECRET` — clave HMAC-SHA256 (mínimo 256 bits). Debe ser la misma en todos los servicios que validen tokens.
 4. Render construirá y levantará los contenedores automáticamente.
 5. Actualizar el frontend para que apunte a la URL pública de Render (puerto 8080).
 
@@ -332,7 +442,8 @@ También se incluye el archivo de colección exportado `PedidosTracking_OAuth2.p
 ## 🧠 Buenas prácticas aplicadas
 
 - **Autenticación Stateless** – Uso de JWT para evitar manejo de sesiones en servidor.
-- **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al auth-service.
+- **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al `auth-service`.
+- **Revocación de tokens (Blacklist)** – El `jti` (JWT ID) único en cada token permite invalidarlo al hacer logout. La tabla `token_blacklist` en MySQL actúa como blacklist compartida entre todos los servicios. Los tokens expirados se eliminan automáticamente cada hora (`@Scheduled`).
 - **Separación de responsabilidades** – Cada microservicio maneja su propio dominio de datos.
 - **Optimistic locking** (`@Version`) en entidades `Pedido`.
 - **Contenerización** con Docker Compose.
