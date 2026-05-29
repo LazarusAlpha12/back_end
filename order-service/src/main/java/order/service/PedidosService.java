@@ -70,7 +70,7 @@ public class PedidosService {
     }
     
 
-    public PedidoResponseDTO crearPedido(PedidoRequestDTO request) {
+    public PedidoResponseDTO crearPedidoLogistico(PedidoRequestDTO request) {
 
         // Validar que el cliente existe
         if (!personaRepositorio.existsById(request.getClienteId())) {
@@ -93,14 +93,44 @@ public class PedidosService {
         evento.setTipoEvento("CREADO");
         evento.setEstado(saved.getEstado());
         evento.setFechaHora(LocalDateTime.now());
-        //Falta obtener operadorId desde el contexto de seguridad
+        evento.setOperadorId(SecurityUtils.getCurrentUserId());
         historialRepositorio.save(evento);
         return convertirADTO(saved);
     }
 
+    public PedidoResponseDTO crearPedidoCliente(PedidoRequestDTO request) {
+
+        // Validar que el cliente existe
+        if (!personaRepositorio.existsById(request.getClienteId())) {
+            throw new RuntimeException("Cliente no encontrado");
+        }
+
+        // Crear entidad
+        Pedido pedido = new Pedido();
+        pedido.setOrigen(request.getOrigen());
+        pedido.setDestino(request.getDestino());
+        pedido.setDescripcion(request.getDescripcion());
+        pedido.setClienteId(request.getClienteId());
+        pedido.setEstado(EstadoPedido.PENDIENTE);
+        pedido.setFechaCreacion(LocalDateTime.now());
+        Pedido saved = pedidoRepositorio.save(pedido);
+
+        // Registrar evento de historial
+        Historial evento = new Historial();
+        evento.setPedido(saved);
+        evento.setTipoEvento("CREADO");
+        evento.setEstado(saved.getEstado());
+        evento.setFechaHora(LocalDateTime.now());
+        evento.setOperadorId(null);
+        historialRepositorio.save(evento);
+        return convertirADTO(saved);
+    }
+
+
+
     public Page<PedidoResponseDTO> listarPedidos(
         
-        String estado, Long clienteId, Long repartidorId, Long id,
+        EstadoPedido estado, Long clienteId, Long repartidorId, Long id,
         LocalDate fechaDesde, LocalDate fechaHasta,
         LocalTime horaDesde, LocalTime horaHasta,
         String ubicacion, Pageable pageable) {
@@ -128,33 +158,63 @@ public class PedidosService {
         return convertirADTO(pedido);
     }
 
-    public PedidoResponseDTO actualizarPedido(Long id, PedidoUpdateDTO dto) {
+   public PedidoResponseDTO actualizarPedido(Long id, PedidoUpdateDTO dto) {
 
         Pedido pedido = pedidoRepositorio.findById(id)
             .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-        if (dto.getOrigen() != null) pedido.setOrigen(dto.getOrigen());
-        if (dto.getDestino() != null) pedido.setDestino(dto.getDestino());
-        if (dto.getDescripcion() != null) pedido.setDescripcion(dto.getDescripcion());
-        if (dto.getClienteId() != null) pedido.setClienteId(dto.getClienteId());
-        if (dto.getRepartidorId() != null) pedido.setRepartidorId(dto.getRepartidorId());
-        if (dto.getEstado() != null) pedido.setEstado(dto.getEstado());
+        // Construir mensaje de cambios para el historial
+        StringBuilder cambios = new StringBuilder();
 
+        if (dto.getOrigen() != null && !dto.getOrigen().equals(pedido.getOrigen())) {
+            cambios.append("Origen: ").append(pedido.getOrigen()).append(" → ").append(dto.getOrigen()).append("; ");
+            pedido.setOrigen(dto.getOrigen());
+        }
+        if (dto.getDestino() != null && !dto.getDestino().equals(pedido.getDestino())) {
+            cambios.append("Destino: ").append(pedido.getDestino()).append(" → ").append(dto.getDestino()).append("; ");
+            pedido.setDestino(dto.getDestino());
+        }
+        if (dto.getDescripcion() != null && !dto.getDescripcion().equals(pedido.getDescripcion())) {
+            cambios.append("Descripción: ").append(pedido.getDescripcion()).append(" → ").append(dto.getDescripcion()).append("; ");
+            pedido.setDescripcion(dto.getDescripcion());
+        }
+        if (dto.getClienteId() != null && !dto.getClienteId().equals(pedido.getClienteId())) {
+            cambios.append("Cliente: ").append(pedido.getClienteId()).append(" → ").append(dto.getClienteId()).append("; ");
+            pedido.setClienteId(dto.getClienteId());
+        }
+        if (dto.getRepartidorId() != null && !dto.getRepartidorId().equals(pedido.getRepartidorId())) {
+            cambios.append("Repartidor: ").append(pedido.getRepartidorId()).append(" → ").append(dto.getRepartidorId()).append("; ");
+            pedido.setRepartidorId(dto.getRepartidorId());
+        }
+        if (dto.getEstado() != null && !dto.getEstado().equals(pedido.getEstado())) {
+            cambios.append("Estado: ").append(pedido.getEstado()).append(" → ").append(dto.getEstado()).append("; ");
+            pedido.setEstado(dto.getEstado());
+        }
+
+        // Solo guardar si hubo cambios
         Pedido updated = pedidoRepositorio.save(pedido);
-        // Falta registrar evento en historial 
-        // con alguna modificación de SecurityConfig o JWTService
-        // para incluir el id del operador logístico
-        return convertirADTO(updated);
 
+        if (cambios.length() > 0) {
+            Historial evento = new Historial();
+            evento.setPedido(updated);
+            evento.setTipoEvento("ACTUALIZADO");
+            evento.setObservacion(cambios.toString());
+            evento.setEstado(updated.getEstado());
+            evento.setOperadorId(SecurityUtils.getCurrentUserId()); // obtiene el userId del SecurityContextHolder
+            evento.setFechaHora(LocalDateTime.now());
+            historialRepositorio.save(evento);
+        }
+
+        return convertirADTO(updated);
     }
 
     // Cambiar estado (con registro de historial)
-    public PedidoResponseDTO cambiarEstado(Long id, String nuevoEstado, Long operadorId) {
+    public PedidoResponseDTO cambiarEstado(Long id, String nuevoEstado) {
+
         Pedido pedido = pedidoRepositorio.findById(id)
             .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
         pedido.setEstado(EstadoPedido.valueOf(nuevoEstado));
         Pedido updated = pedidoRepositorio.save(pedido);
-        // Registrar en historial (mismo meollo que en actualizarPedido)
 
         Historial evento = new Historial();
 
@@ -162,7 +222,7 @@ public class PedidosService {
         evento.setTipoEvento("ESTADO_CAMBIADO");
         evento.setEstado(updated.getEstado());
         evento.setObservacion("Nuevo estado: " + nuevoEstado);
-        evento.setOperadorId(operadorId);
+        evento.setOperadorId(SecurityUtils.getCurrentUserId());
         evento.setFechaHora(LocalDateTime.now());
         historialRepositorio.save(evento);
 
@@ -172,6 +232,7 @@ public class PedidosService {
 
     // Asignar repartidor
     public PedidoResponseDTO asignarRepartidor(Long id, Long repartidorId) {
+        
         // Validar que el repartidor exista (opcional)
         if (!personaRepositorio.existsById(repartidorId)) {
             throw new RuntimeException("Repartidor no encontrado");
@@ -182,10 +243,11 @@ public class PedidosService {
         pedido.setRepartidorId(repartidorId);
 
         Pedido updated = pedidoRepositorio.save(pedido);
-        // Registrar en historial (mismo meollo que en cambiarEstado)
 
         Historial evento = new Historial();
         evento.setPedido(updated);
+        evento.setEstado(EstadoPedido.ASIGNADO);
+        evento.setOperadorId(SecurityUtils.getCurrentUserId());
         evento.setTipoEvento("ASIGNADO");
         evento.setObservacion("Asignado a repartidor ID: " + repartidorId);
         evento.setFechaHora(LocalDateTime.now());
@@ -197,32 +259,30 @@ public class PedidosService {
 
     public void registrarUbicacion(Long pedidoId, UbicacionRequestDTO dto) {
 
-    Pedido pedido = pedidoRepositorio.findById(pedidoId)
-        .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
+        Pedido pedido = pedidoRepositorio.findById(pedidoId)
+            .orElseThrow(() -> new RuntimeException("Pedido no encontrado"));
 
-    // Crear o buscar Ubicacion (se puede crear una nueva cada vez)
-    Ubicacion ubicacion = new Ubicacion();
+        // Crear o buscar Ubicacion (se puede crear una nueva cada vez)
+        Ubicacion ubicacion = new Ubicacion();
 
-    ubicacion.setDireccion(dto.getDireccion());
+        ubicacion.setDireccion(dto.getDireccion());
 
-    if (ubicacion.getUbicacionLat() != null) ubicacion.setUbicacionLat(dto.getLatitud());
-    if (ubicacion.getUbicacionLng() != null) ubicacion.setUbicacionLng(dto.getLongitud());
+        if (dto.getLatitud()!= null) ubicacion.setUbicacionLat(dto.getLatitud());
+        if (dto.getLongitud() != null) ubicacion.setUbicacionLng(dto.getLongitud());
 
-    ubicacionRepositorio.save(ubicacion);
+        ubicacionRepositorio.save(ubicacion);
 
-    // Registrar historial
+        // Registrar historial
 
-    Historial evento = new Historial();
+        Historial evento = new Historial();
 
-    evento.setPedido(pedido);
-    evento.setTipoEvento("UBICACION_ACTUALIZADA");
-    evento.setUbicacion(ubicacion);
+        evento.setPedido(pedido);
+        evento.setTipoEvento("UBICACION_ACTUALIZADA");
+        evento.setUbicacion(ubicacion);
+        evento.setOperadorId(SecurityUtils.getCurrentUserId());
+        evento.setFechaHora(LocalDateTime.now());
 
-    //evento.setOperadorId(la modificacion que hace falta para conseguirlo del token)
-
-    evento.setFechaHora(LocalDateTime.now());
-
-    historialRepositorio.save(evento);
+        historialRepositorio.save(evento);
 
     }
 }

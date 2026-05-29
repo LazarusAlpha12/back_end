@@ -13,6 +13,7 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import order.dto.PedidoResponseDTO;
+import order.entity.EstadoPedido;
 import order.entity.Pedido;
 
 @Repository
@@ -53,7 +54,7 @@ public interface PedidoRepositorio extends JpaRepository<Pedido, Long>{
        "AND (:horaHasta IS NULL OR TIME(p.fechaCreacion) <= :horaHasta) " +
        "AND (:pedidoIds IS NULL OR p.id IN :pedidoIds)")
    Page<PedidoResponseDTO> buscarConFiltros(
-      @Param("estado") String estado,
+      @Param("estado") EstadoPedido estado,
       @Param("clienteId") Long clienteId,
       @Param("repartidorId") Long repartidorId,
       @Param("id") Long id,

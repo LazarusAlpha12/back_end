@@ -16,4 +16,7 @@ public class HistorialFiltroDTO {
     private String tipoEvento;
     private LocalDateTime fechaHora;
     private String operadorNombre;
+    private String ubicacionDireccion;   // de Ubicacion.direccion
+    private Double ubicacionLat;          // de Ubicacion.ubicacionLat
+    private Double ubicacionLng;  
 }
