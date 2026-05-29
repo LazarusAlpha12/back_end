@@ -36,7 +36,7 @@ public class PedidoController {
     private PedidosService pedidoService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<Page<PedidoResponseDTO>> listarPedidos(
             @RequestParam(required = false) EstadoPedido estado,
             @RequestParam(required = false) Long clienteId,
@@ -58,42 +58,42 @@ public class PedidoController {
     }
 
     @GetMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR') or hasRole('CLIENTE')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO') or hasRole('CLIENTE')")
     public ResponseEntity<PedidoResponseDTO> obtenerPedido(@PathVariable Long id) {
         PedidoResponseDTO dto = pedidoService.obtenerPedido(id);
         return ResponseEntity.ok(dto);
     }
 
-    @PostMapping
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PostMapping("/logistico")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<PedidoResponseDTO> crearPedidoLogistico(@RequestBody PedidoRequestDTO request) {
         PedidoResponseDTO created = pedidoService.crearPedidoLogistico(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
-    @PostMapping
+    @PostMapping("/cliente")
     @PreAuthorize("hasRole('CLIENTE')")
-    public ResponseEntity<PedidoResponseDTO> crearPedido(@RequestBody PedidoRequestDTO request) {
+    public ResponseEntity<PedidoResponseDTO> crearPedidoCliente(@RequestBody PedidoRequestDTO request) {
         PedidoResponseDTO created = pedidoService.crearPedidoCliente(request);
         return ResponseEntity.status(HttpStatus.CREATED).body(created);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<PedidoResponseDTO> actualizarPedido(@PathVariable Long id, @RequestBody PedidoUpdateDTO dto) {
         PedidoResponseDTO updated = pedidoService.actualizarPedido(id, dto);
         return ResponseEntity.ok(updated);
     }
 
     @PatchMapping("/{id}/estado")
-    @PreAuthorize("hasRole('REPARTIDOR') or hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PreAuthorize("hasRole('REPARTIDOR') or hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<PedidoResponseDTO> cambiarEstado(@PathVariable Long id, @RequestParam String nuevoEstado) {
         PedidoResponseDTO updated = pedidoService.cambiarEstado(id, nuevoEstado);
         return ResponseEntity.ok(updated);
     }
 
     @PatchMapping("/{id}/asignar")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<PedidoResponseDTO> asignarRepartidor(@PathVariable Long id, @RequestParam Long repartidorId) {
         PedidoResponseDTO updated = pedidoService.asignarRepartidor(id, repartidorId);
         return ResponseEntity.ok(updated);
@@ -101,7 +101,7 @@ public class PedidoController {
 
      // Registrar ubicación (repartidor)
     @PostMapping("/{id}/ubicacion")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR')or hasRole('ADMIN') or hasRole('OPERADOR')")
+    @PreAuthorize("hasRole('REPARTIDOR') or hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<Void> registrarUbicacion(@PathVariable Long id, @RequestBody UbicacionRequestDTO dto) {
         pedidoService.registrarUbicacion(id, dto);
         return ResponseEntity.ok().build();

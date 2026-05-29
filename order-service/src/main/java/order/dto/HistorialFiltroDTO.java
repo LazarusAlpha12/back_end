@@ -2,7 +2,6 @@ package order.dto;
 
 import java.time.LocalDateTime;
 
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -10,13 +9,17 @@ import lombok.Setter;
 @Getter
 @Setter
 @NoArgsConstructor
-@AllArgsConstructor
 public class HistorialFiltroDTO {
     private Long id;
     private String tipoEvento;
     private LocalDateTime fechaHora;
     private String operadorNombre;
-    private String ubicacionDireccion;   // de Ubicacion.direccion
-    private Double ubicacionLat;          // de Ubicacion.ubicacionLat
-    private Double ubicacionLng;  
+
+    // Constructor manual para que JPA lo encuentre
+    public HistorialFiltroDTO(Long id, String tipoEvento, LocalDateTime fechaHora, String operadorNombre) {
+        this.id = id;
+        this.tipoEvento = tipoEvento;
+        this.fechaHora = fechaHora;
+        this.operadorNombre = operadorNombre;
+    }
 }

@@ -20,10 +20,10 @@ public enum Rol {
      */
     public String toFrontendValue() {
         return switch (this) {
-            case ADMINISTRADOR -> "Administrador";
-            case OPERADOR_LOGISTICO -> "OperadorLogistico";
-            case REPARTIDOR -> "Repartidor";
-            case CLIENTE -> "Cliente";
+            case ADMINISTRADOR -> "ADMINISTRADOR";
+            case OPERADOR_LOGISTICO -> "OPERADOR_LOGISTICO";
+            case REPARTIDOR -> "REPARTIDOR";
+            case CLIENTE -> "CLIENTE";
         };
     }
 }
