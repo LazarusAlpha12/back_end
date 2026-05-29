@@ -4,7 +4,9 @@ import auth.dto.LoginRequest;
 import auth.dto.LoginResponse;
 import auth.dto.RegisterRequest;
 import auth.entity.Persona;
+import auth.entity.TokenBlacklist;
 import auth.repository.PersonaRepository;
+import auth.repository.TokenBlacklistRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -21,15 +23,18 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuthenticationManager authenticationManager;
     private final PasswordEncoder passwordEncoder;
+    private final TokenBlacklistRepository blacklistRepository;
 
     public AuthService(PersonaRepository personaRepository,
                        JwtService jwtService,
                        AuthenticationManager authenticationManager,
-                       PasswordEncoder passwordEncoder) {
+                       PasswordEncoder passwordEncoder,
+                       TokenBlacklistRepository blacklistRepository) {
         this.personaRepository = personaRepository;
         this.jwtService = jwtService;
         this.authenticationManager = authenticationManager;
         this.passwordEncoder = passwordEncoder;
+        this.blacklistRepository = blacklistRepository;
     }
 
     // ── Login ──────────────────────────────────────────────────────────────────
@@ -78,6 +83,14 @@ public class AuthService {
         String token = jwtService.generateToken(persona);
 
         return buildResponse(token, persona);
+    }
+
+    // ── Logout ─────────────────────────────────────────────────────────────────
+
+    public void logout(String authHeader) {
+        String token = authHeader.substring(7); // quita "Bearer "
+        String jti = jwtService.extractJti(token);
+        blacklistRepository.save(new TokenBlacklist(jti, jwtService.extractExpiration(token)));
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────

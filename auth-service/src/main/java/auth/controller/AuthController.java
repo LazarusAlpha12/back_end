@@ -7,6 +7,8 @@ import auth.service.AuthService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.Map;
+
 /**
  * Endpoints públicos de autenticación.
  * Ambos endpoints están en /auth/** y son permitidos sin token (ver SecurityConfig).
@@ -41,5 +43,17 @@ public class AuthController {
     public ResponseEntity<LoginResponse> register(@RequestBody RegisterRequest request) {
         LoginResponse response = authService.register(request);
         return ResponseEntity.status(201).body(response);
+    }
+
+    /**
+     * POST /auth/logout
+     * Header: Authorization: Bearer <token>
+     * Revoca el token añadiendo su JTI a la blacklist — no se podrá usar aunque no haya expirado.
+     */
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout(
+            @RequestHeader("Authorization") String authHeader) {
+        authService.logout(authHeader);
+        return ResponseEntity.ok(Map.of("message", "Sesión cerrada correctamente"));
     }
 }
