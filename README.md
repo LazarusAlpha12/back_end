@@ -45,11 +45,40 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 ### Base de datos compartida (simplificación académica)
 
 Aunque en una arquitectura de microservicios pura cada servicio debería tener su propia base de datos, por razones de simplicidad y tiempo usamos una única instancia MySQL. **Cada servicio accede solo a sus tablas**:
-- `auth-service` → tabla `personas` (solo lectura para login y escritura opcional si se implementa registro).
+- `auth-service` → tablas `personas`, `repartidores`, `operadores_logisticos`, `token_blacklist`.
 - `user-service` → tabla `personas` (gestión completa de usuarios).
-- `order-service` → tablas `pedido`, `historial_movimiento`, `ubicacion`.
+- `order-service` → tablas `pedidos`, `historial_movimiento`, `ubicaciones`.
 
 No se utilizan **triggers** ni sincronización a nivel de base de datos. Si un servicio necesita datos de otro (ej. `order-service` necesita el nombre del cliente), se hará mediante llamada a la API de `user-service` o se mantendrá una copia desnormalizada gestionada por eventos.
+
+### Esquema de base de datos
+
+El modelo usa una tabla principal `personas` con **tablas de extensión** para los roles que tienen datos propios adicionales:
+
+```
+personas  (todos los usuarios)
+├── id             BIGINT PK AUTO_INCREMENT
+├── nombre         VARCHAR(255) NOT NULL
+├── apellido       VARCHAR(255)
+├── email          VARCHAR(255) UNIQUE NOT NULL
+├── password       VARCHAR(255) NOT NULL  ← BCrypt hash
+└── rol            VARCHAR(255) NOT NULL  ← ADMINISTRADOR | OPERADOR_LOGISTICO | REPARTIDOR | CLIENTE
+
+repartidores  (extensión — solo repartidores)
+├── persona_id     BIGINT PK FK → personas.id
+├── capacidad      INT NOT NULL
+└── disponibilidad BOOLEAN NOT NULL DEFAULT true
+
+operadores_logisticos  (extensión — solo operadores)
+├── persona_id     BIGINT PK FK → personas.id
+└── admin_id       BIGINT FK → personas.id  ← admin que supervisa al operador
+
+token_blacklist  (tokens revocados por logout)
+├── jti            VARCHAR(36) PK  ← UUID único del JWT
+└── expires_at     DATETIME NOT NULL
+```
+
+Hibernate genera y actualiza estas tablas automáticamente (`ddl-auto: update`) al arrancar cada servicio.
 
 ---
 
@@ -85,8 +114,8 @@ back_end/
 │   ├── src/main/java/auth/
 │   │   ├── controller/           # Endpoints públicos: POST /auth/login, POST /auth/register, POST /auth/logout
 │   │   ├── service/              # Lógica de negocio: AuthService, JwtService, CustomUserDetailsService
-│   │   ├── repository/           # JPA repositorios: PersonaRepository, TokenBlacklistRepository
-│   │   ├── entity/               # Entidades JPA: Persona, enum Rol, TokenBlacklist
+│   │   ├── repository/           # PersonaRepository, RepartidorRepository, OperadorLogisticoRepository, TokenBlacklistRepository
+│   │   ├── entity/               # Persona, Repartidor, OperadorLogistico, enum Rol, TokenBlacklist
 │   │   ├── dto/                  # DTOs: LoginRequest, LoginResponse, RegisterRequest
 │   │   ├── config/               # SecurityConfig, JwtAuthenticationFilter (verifica blacklist)
 │   │   ├── scheduled/            # TokenCleanupTask: limpieza automática de tokens expirados (cada hora)
@@ -253,6 +282,43 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
   ```
 - **Respuesta**: contiene el `token` y datos del usuario. Copiar el token.
 
+### Registro de usuarios (por rol)
+
+- **URL**: `http://localhost:8081/auth/register`
+- **Método**: POST
+
+**Administrador o Cliente** (sin campos extra):
+```json
+{
+  "nombre": "Admin", "apellido": "Principal",
+  "email": "admin@test.com", "password": "pass123",
+  "rol": "ADMINISTRADOR"
+}
+```
+
+**Repartidor** (`capacidad` obligatorio, `disponibilidad` opcional — default `true`):
+```json
+{
+  "nombre": "Carlos", "apellido": "López",
+  "email": "carlos@test.com", "password": "pass123",
+  "rol": "REPARTIDOR",
+  "capacidad": 10,
+  "disponibilidad": true
+}
+```
+
+**Operador Logístico** (`adminId` obligatorio — debe ser ID de un administrador existente):
+```json
+{
+  "nombre": "Ana", "apellido": "Gómez",
+  "email": "ana@test.com", "password": "pass123",
+  "rol": "OPERADOR_LOGISTICO",
+  "adminId": 1
+}
+```
+
+Errores: `400` si falta `capacidad` en repartidor, o si `adminId` no existe o no es administrador.
+
 ### Llamada a un endpoint protegido (Resource Server)
 
 - **URL**: `http://localhost:8080/api/pedidos` (pasa por el gateway)
@@ -351,6 +417,7 @@ También se incluye el archivo de colección exportado `PedidosTracking_OAuth2.p
 - **Autenticación Stateless** – Uso de JWT para evitar manejo de sesiones en servidor.
 - **Validación descentralizada** – Los Resource Servers validan los tokens localmente sin acoplarse al `auth-service`.
 - **Revocación de tokens (Blacklist)** – El `jti` (JWT ID) único en cada token permite invalidarlo al hacer logout. La tabla `token_blacklist` en MySQL actúa como blacklist compartida entre todos los servicios. Los tokens expirados se eliminan automáticamente cada hora (`@Scheduled`).
+- **Tablas de extensión** – Solo los roles con datos propios (`REPARTIDOR`, `OPERADOR_LOGISTICO`) tienen tabla de extensión. `personas` no acumula columnas NULL para roles que no las necesitan.
 - **Separación de responsabilidades** – Cada microservicio maneja su propio dominio de datos.
 - **Optimistic locking** (`@Version`) en entidades `Pedido`.
 - **Contenerización** con Docker Compose.
