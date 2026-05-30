@@ -79,22 +79,23 @@ services:
     networks:
       - pedidos-net
 
-  # api-gateway:
-  #   build: ./api-gateway
-  #   container_name: api-gateway
-  #   ports:
-  #     - "8080:8080"
-  #   depends_on:
-  #     - auth-service
-  #   develop:
-  #     watch:
-  #       - action: sync+restart
-  #         path: ./order-service
-  #         target: /app/src
-  #       - action: rebuild
-  #         path: ./order-service/pom.xml
-  #   networks:
-  #     - pedidos-net
+  api-gateway:
+    build: ./api-gateway
+    container_name: api-gateway
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - order-service
+    develop:
+      watch:
+        - action: sync+restart
+          path: ./api-gateway
+          target: /app/src
+        - action: rebuild
+          path: ./api-gateway/pom.xml
+    networks: 
+      - pedidos-net
 
 networks:
   pedidos-net:
