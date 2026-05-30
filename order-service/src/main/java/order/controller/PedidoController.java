@@ -6,6 +6,7 @@ import java.time.LocalTime;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort.Direction;
 import org.springframework.data.web.PageableDefault;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
@@ -47,7 +48,7 @@ public class PedidoController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaDesde,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaHasta,
             @RequestParam(required = false) String ubicacion,
-            @PageableDefault(size = 10, sort = "fechaCreacion") Pageable pageable) {
+            @PageableDefault(size = 10, sort = "fechaCreacion", direction = Direction.ASC) Pageable pageable) {
 
         Page<PedidoResponseDTO> pagina = pedidoService.listarPedidos(
                 estado, clienteId, repartidorId, id,
