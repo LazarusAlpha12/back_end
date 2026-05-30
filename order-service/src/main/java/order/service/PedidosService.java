@@ -235,7 +235,10 @@ public class PedidosService {
         
         // Validar que el repartidor exista (opcional)
         if (!personaRepositorio.existsById(repartidorId)) {
-            throw new RuntimeException("Repartidor no encontrado");
+            throw new RuntimeException("Repartidor no encontrado con id: " + repartidorId);
+        } else if (!personaRepositorio.getRolPersona(id).equals("REPARTIDOR")) 
+        {
+            throw new RuntimeException("No se puede asginar la persona con id: " + repartidorId);
         }
 
         Pedido pedido = pedidoRepositorio.findById(id)
