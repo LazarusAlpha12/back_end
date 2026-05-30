@@ -64,6 +64,11 @@ services:
     depends_on:
       mysql-db:
         condition: service_healthy
+    environment:
+      # Sobrescribimos la URL de la base de datos para que apunte al contenedor mysql-db en lugar de localhost
+      - SPRING_DATASOURCE_URL=jdbc:mysql://mysql-db:3306/tracking_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+      - SPRING_DATASOURCE_USERNAME=root
+      - SPRING_DATASOURCE_PASSWORD=rootpass
     develop:
       watch:
         - action: sync+restart

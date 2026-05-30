@@ -1,5 +1,10 @@
 package auth.service;
 
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.stereotype.Service;
+
 import auth.dto.LoginRequest;
 import auth.dto.LoginResponse;
 import auth.dto.RegisterRequest;
@@ -12,10 +17,6 @@ import auth.repository.OperadorLogisticoRepository;
 import auth.repository.PersonaRepository;
 import auth.repository.RepartidorRepository;
 import auth.repository.TokenBlacklistRepository;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.stereotype.Service;
 
 /**
  * Lógica de negocio de autenticación.
@@ -88,6 +89,7 @@ public class AuthService {
                 passwordEncoder.encode(request.password()),
                 request.rol()
         );
+        
         personaRepository.save(persona);
 
         // Guardar datos de extensión según el rol

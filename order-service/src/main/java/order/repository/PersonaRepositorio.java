@@ -14,4 +14,7 @@ public interface PersonaRepositorio extends JpaRepository<Persona, Long> {
 
     @Query("SELECT new map(p.id as id, p.nombre as nombre) FROM Persona p WHERE p.id IN :ids")
     List<Object[]> findNombresByIds(@Param("ids") List<Long> ids);
+
+    @Query("SELECT p.rol from Persona p WHERE p.id = :id")
+    String getRolPersona(@Param("id") Long id);
 }
