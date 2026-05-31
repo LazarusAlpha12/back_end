@@ -39,7 +39,8 @@ public interface PedidoRepositorio extends JpaRepository<Pedido, Long>{
    @Query("SELECT new order.dto.PedidoResponseDTO(" +
       "p.id, p.origen, p.destino, p.estado, p.fechaCreacion, " +
       "c.id, c.nombre, " +
-      "r.id, r.nombre) " +
+      "r.id, r.nombre, " +
+      "p.descripcion) " +
       "FROM Pedido p " +
        "LEFT JOIN Persona c ON p.clienteId = c.id " +
        "LEFT JOIN Persona r ON p.repartidorId = r.id " +
