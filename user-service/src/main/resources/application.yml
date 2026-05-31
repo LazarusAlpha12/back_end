@@ -1,0 +1,21 @@
+server:
+  port: 8082 ## Especifica el uso de un puerto independiente para cada uno de los microservicios
+
+spring:
+  application:
+    name: user-service
+  datasource: ## Presenta la conexion del microservicio a MYSQL directamente
+    url: jdbc:mysql://mysql-db:3306/tracking_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
+    username: root
+    password: rootpass
+
+  jpa:
+    hibernate:
+      ddl-auto: update ## Permite la creacion automatica de tablas por parte 
+    show-sql: true
+
+app:
+  jwt:
+    # Clave HMAC-SHA256: mínimo 256 bits (32 bytes). Cambiar en producción via variable de entorno.
+    secret: "404E635266556A586E3272357538782F413F4428472B4B6250645367566B5970"
+
