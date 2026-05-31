@@ -24,4 +24,20 @@ public class PedidoResponseDTO {
     private Long repartidorId;
     private String repartidorNombre;
     private String descripcion;
+
+     public PedidoResponseDTO(Long id, String origen, String destino,
+                             EstadoPedido estado, LocalDateTime fechaCreacion,
+                             Long clienteId, String clienteNombre,
+                             Long repartidorId, String repartidorNombre) {
+        this.id = id;
+        this.origen = origen;
+        this.destino = destino;
+        this.estado = estado;
+        this.fechaCreacion = fechaCreacion;
+        this.clienteId = clienteId;
+        this.clienteNombre = clienteNombre;
+        this.repartidorId = repartidorId;
+        this.repartidorNombre = repartidorNombre;
+        // descripcion queda null por defecto
+    }
 }
