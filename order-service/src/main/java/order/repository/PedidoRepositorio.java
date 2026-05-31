@@ -1,7 +1,6 @@
 package order.repository;
 
-import java.time.LocalDate;
-import java.time.LocalTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -50,18 +49,18 @@ public interface PedidoRepositorio extends JpaRepository<Pedido, Long>{
        "AND (:id IS NULL OR p.id = :id) " +
        "AND (:fechaDesde IS NULL OR p.fechaCreacion >= :fechaDesde) " +
        "AND (:fechaHasta IS NULL OR p.fechaCreacion <= :fechaHasta) " +
-       "AND (:horaDesde IS NULL OR TIME(p.fechaCreacion) >= :horaDesde) " +
-       "AND (:horaHasta IS NULL OR TIME(p.fechaCreacion) <= :horaHasta) " +
+       "AND (:horaDesde IS NULL OR SUBSTRING(CAST(p.fechaCreacion AS string), 12, 5) >= :horaDesde) " +
+       "AND (:horaHasta IS NULL OR SUBSTRING(CAST(p.fechaCreacion AS string), 12, 5) <= :horaHasta) " +
        "AND (:pedidoIds IS NULL OR p.id IN :pedidoIds)")
    Page<PedidoResponseDTO> buscarConFiltros(
       @Param("estado") EstadoPedido estado,
       @Param("clienteId") Long clienteId,
       @Param("repartidorId") Long repartidorId,
       @Param("id") Long id,
-      @Param("fechaDesde") LocalDate fechaDesde,
-      @Param("fechaHasta") LocalDate fechaHasta,
-      @Param("horaDesde") LocalTime horaDesde,
-      @Param("horaHasta") LocalTime horaHasta,
+      @Param("fechaDesde") LocalDateTime fechaDesde,
+      @Param("fechaHasta") LocalDateTime fechaHasta,
+      @Param("horaDesde") String horaDesde,
+      @Param("horaHasta") String horaHasta,
       @Param("pedidoIds") Set<Long> pedidoIds,
       Pageable pageable);
 }

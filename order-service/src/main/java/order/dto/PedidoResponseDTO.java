@@ -23,4 +23,5 @@ public class PedidoResponseDTO {
     private String clienteNombre;
     private Long repartidorId;
     private String repartidorNombre;
+    private String descripcion;
 }
