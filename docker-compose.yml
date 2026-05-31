@@ -45,16 +45,16 @@ services:
   # ── SERVICIOS PENDIENTES DE IMPLEMENTACIÓN ──
   # Descomentaremos estos servicios a medida que los vayamos implementando
 
-  # user-service:
-  #   build: ./user-service
-  #   container_name: user-service
-  #   ports:
-  #     - "8082:8082"
-  #   depends_on:
-  #     mysql-db:
-  #       condition: service_healthy
-  #   networks:
-  #     - pedidos-net
+  user-service:
+    build: ./user-service
+    container_name: user-service
+    ports:
+      - "8082:8082"
+    depends_on:
+      mysql-db:
+        condition: service_healthy
+    networks:
+      - pedidos-net
 
   order-service:
     build: ./order-service
@@ -87,6 +87,7 @@ services:
     depends_on:
       - auth-service
       - order-service
+      - user-service
     develop:
       watch:
         - action: sync+restart

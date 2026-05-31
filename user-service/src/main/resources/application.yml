@@ -5,9 +5,9 @@ spring:
   application:
     name: user-service
   datasource: ## Presenta la conexion del microservicio a MYSQL directamente
-    url: jdbc:mysql://localhost:3306/user_service_db
+    url: jdbc:mysql://mysql-db:3306/tracking_db?createDatabaseIfNotExist=true&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=UTC
     username: root
-    password: root
+    password: rootpass
 
   jpa:
     hibernate:
