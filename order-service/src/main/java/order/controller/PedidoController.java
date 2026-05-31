@@ -49,13 +49,12 @@ public class PedidoController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.TIME) LocalTime horaHasta,
             @RequestParam(required = false) String ubicacion,
             @PageableDefault(size = 10, sort = "fechaCreacion", direction = Direction.ASC) Pageable pageable) {
+            Page<PedidoResponseDTO> pagina = pedidoService.listarPedidos(
+                    estado, clienteId, repartidorId, id,
+                    fechaDesde, fechaHasta, horaDesde, horaHasta,
+                    ubicacion, pageable);
 
-        Page<PedidoResponseDTO> pagina = pedidoService.listarPedidos(
-                estado, clienteId, repartidorId, id,
-                fechaDesde, fechaHasta, horaDesde, horaHasta,
-                ubicacion, pageable);
-
-        return ResponseEntity.ok(pagina);
+            return ResponseEntity.ok(pagina);
     }
 
     @GetMapping("/{id}")

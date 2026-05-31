@@ -17,17 +17,17 @@ public class CorsConfig {
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         // 1. Define las reglas CORS
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:5173")); // 🔥 URL de tu frontend (Vite)
+        config.setAllowedOriginPatterns(List.of("http://localhost:5173")); // URL del frontend (ajustar al de Vercel después)
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
-        config.setAllowCredentials(true); // Importante si usas cookies o sesiones
+        config.setAllowCredentials(true); // Importante si se usan cookies o sesiones
         config.setMaxAge(3600L); // 1 hora de cache para preflight
 
-        // 2. Aplica las reglas a todas las rutas (/**)
+        // 2. Aplicar las reglas a todas las rutas (/**)
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
         source.registerCorsConfiguration("/**", config);
 
-        // 3. Registra el filtro
+        // 3. Registrar el filtro
         FilterRegistrationBean<CorsFilter> bean = new FilterRegistrationBean<>(new CorsFilter(source));
         bean.setOrder(Ordered.HIGHEST_PRECEDENCE); // Asegura que el filtro sea lo primero
         return bean;
