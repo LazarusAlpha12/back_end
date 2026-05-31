@@ -13,11 +13,11 @@ public enum EstadoPedido {
      */
     public String toFrontendValue() {
         return switch (this) {
-            case PENDIENTE -> "Pendiente";
-            case ASIGNADO -> "Asignado";
-            case ENTREGADO -> "Entregado";
-            case EN_TRANSITO -> "En_Transito";
-            case CANCELADO -> "Cancelado";
+            case PENDIENTE -> "PENDIENTE";
+            case ASIGNADO -> "ASIGNADO";
+            case ENTREGADO -> "ENTREGADO";
+            case EN_TRANSITO -> "EN_TRANSITO";
+            case CANCELADO -> "CANCELADO";
         };
     }
 }

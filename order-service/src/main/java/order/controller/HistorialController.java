@@ -21,7 +21,7 @@ public class HistorialController {
     private HistorialService historialService;
     
     @GetMapping("/{pedidoId}/historial")
-    @PreAuthorize("hasRole('ADMIN')")
+    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<List<HistorialFiltroDTO>> obtenerHistorial(@PathVariable Long pedidoId) {
         List<HistorialFiltroDTO> historial = historialService.obtenerHistorialPorPedido(pedidoId);
         return ResponseEntity.ok(historial);
