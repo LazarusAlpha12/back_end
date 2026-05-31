@@ -3,6 +3,7 @@ package order.service;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,7 +66,8 @@ public class PedidosService {
             pedido.getClienteId(),
             clienteNombre,
             pedido.getRepartidorId(),
-            repartidorNombre
+            repartidorNombre,
+            pedido.getDescripcion()
         );
     }
     
@@ -79,16 +81,19 @@ public class PedidosService {
 
         // Crear entidad
         Pedido pedido = new Pedido();
+
         pedido.setOrigen(request.getOrigen());
         pedido.setDestino(request.getDestino());
         pedido.setDescripcion(request.getDescripcion());
         pedido.setClienteId(request.getClienteId());
         pedido.setEstado(EstadoPedido.PENDIENTE);
         pedido.setFechaCreacion(LocalDateTime.now());
+
         Pedido saved = pedidoRepositorio.save(pedido);
 
         // Registrar evento de historial
         Historial evento = new Historial();
+        
         evento.setPedido(saved);
         evento.setTipoEvento("CREADO");
         evento.setEstado(saved.getEstado());
@@ -137,6 +142,16 @@ public class PedidosService {
 
             Set<Long> pedidoIds = null;
 
+            LocalDateTime fechaDesdeDateTime = fechaDesde != null 
+            ? fechaDesde.atStartOfDay() : null;
+
+            LocalDateTime fechaHastaDateTime = fechaHasta != null 
+            ? fechaHasta.atTime(LocalTime.MAX) : null;
+
+            DateTimeFormatter fmt = DateTimeFormatter.ofPattern("HH:mm");
+            String horaDesdeStr = horaDesde != null ? horaDesde.format(fmt) : null;
+            String horaHastaStr = horaHasta != null ? horaHasta.format(fmt) : null;
+
             if (ubicacion != null && !ubicacion.isBlank()) {
                 pedidoIds = historialRepositorio.findPedidoIdsByUbicacionContaining(ubicacion);
                 if (pedidoIds.isEmpty()) {
@@ -146,7 +161,7 @@ public class PedidosService {
 
             return pedidoRepositorio.buscarConFiltros(
                 estado, clienteId, repartidorId, id,
-                fechaDesde, fechaHasta, horaDesde, horaHasta,
+                fechaDesdeDateTime, fechaHastaDateTime, horaDesdeStr, horaHastaStr,
                 pedidoIds, pageable);
     }
 

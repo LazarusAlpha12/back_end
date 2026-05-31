@@ -13,6 +13,7 @@ public class PedidoRequestDTO {
 
     private String origen;
     private String destino;
-    private String descripcion;
     private Long clienteId;   // obligatorio
+    private String nombreCliente;
+    private String descripcion;
 }
