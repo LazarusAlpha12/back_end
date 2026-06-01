@@ -65,9 +65,12 @@ personas (tabla principal — todos los usuarios)
 └── rol          VARCHAR(255) NOT NULL  ← ADMINISTRADOR | OPERADOR_LOGISTICO | REPARTIDOR | CLIENTE
 
 repartidores (extensión — solo repartidores)
-├── persona_id   BIGINT PK FK → personas.id
-├── capacidad    INT NOT NULL
-└── disponibilidad BOOLEAN NOT NULL DEFAULT true
+├── persona_id      BIGINT PK FK → personas.id
+├── capacidad       INT NOT NULL
+├── disponibilidad  BOOLEAN NOT NULL DEFAULT true
+├── telefono        VARCHAR(20)
+├── vehiculo        VARCHAR(255)
+└── estado          VARCHAR(50) DEFAULT 'DISPONIBLE'  ← DISPONIBLE | OCUPADO | INACTIVO
 
 operadores_logisticos (extensión — solo operadores)
 ├── persona_id   BIGINT PK FK → personas.id
@@ -103,9 +106,37 @@ ubicaciones
 ├── direccion     VARCHAR(255) NOT NULL
 ├── ubicacion_lat DOUBLE
 └── ubicacion_lng DOUBLE
+
+configuracion (parámetros del sistema)
+├── id           BIGINT PK AUTO_INCREMENT
+├── clave        VARCHAR(255) UNIQUE NOT NULL
+├── valor        VARCHAR(255) NOT NULL
+├── descripcion  VARCHAR(255)
+└── tipo         VARCHAR(50)  ← boolean | number | string
+
+audit_logs (logs del sistema)
+├── id           BIGINT PK AUTO_INCREMENT
+├── timestamp    DATETIME NOT NULL
+├── tipo         VARCHAR(50) NOT NULL  ← INFO | WARN | ERROR
+├── usuario_id   BIGINT
+└── descripcion  VARCHAR(255)
 ```
 
 Hibernate genera y actualiza estas tablas automáticamente (`ddl-auto: update`) al arrancar cada servicio.
+
+---
+
+## 📡 Nuevos Endpoints (Admin Module)
+
+### user-service
+- **GET** `/api/usuarios/repartidores` — Lista repartidores con datos completos. Requiere ADMINISTRADOR u OPERADOR_LOGISTICO.
+- **GET** `/api/config` — Parametros de configuracion del sistema. Solo ADMINISTRADOR.
+- **PUT** `/api/config/{id}` — Actualiza un parametro. Solo ADMINISTRADOR.
+- **GET** `/api/logs?limit=100` — Logs del sistema. Solo ADMINISTRADOR.
+
+### order-service
+- **GET** `/api/pedidos/reportes` — Estadisticas de pedidos por estado. Solo ADMINISTRADOR.
+- **GET** `/api/pedidos/{pedidoId}/historial` — Historial de eventos. ADMINISTRADOR, OPERADOR_LOGISTICO o REPARTIDOR.
 
 ---
 
@@ -150,25 +181,31 @@ back_end/
 │   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
-├── user-service/                 # Resource Server (gestión de usuarios)
+├── user-service/                 # Resource Server (gestión de usuarios, repartidores, configuración, logs)
 │   ├── src/main/java/user/
-│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios)
-│   │   ├── service/              # Lógica de negocio de usuarios
-│   │   ├── repository/           # PersonaRepository
-│   │   ├── entity/               # Persona (tabla compartida con auth-service)
-│   │   ├── dto/                  # DTOs de request/response
+│   │   ├── controller/           # Endpoints protegidos:
+│   │   │   ├── PersonaController       # CRUD de usuarios + GET /api/usuarios/repartidores
+│   │   │   ├── ConfiguracionController # GET/PUT /api/config (parámetros del sistema)
+│   │   │   └── AuditLogController      # GET /api/logs (logs del sistema)
+│   │   ├── service/              # Lógica de negocio de usuarios + auditoría
+│   │   ├── repository/           # PersonaRepository, RepartidorRepository, ConfiguracionRepository, AuditLogRepository
+│   │   ├── entity/               # Persona, Repartidor, Configuracion, AuditLog
+│   │   ├── dto/                  # PersonaResponseDTO, RepartidorResponseDTO, etc.
 │   │   ├── config/               # SecurityConfig (valida JWT usando la misma clave secreta)
 │   │   └── exception/            # Manejo de errores
 │   ├── Dockerfile
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
-├── order-service/                # Resource Server (pedidos, historial, ubicaciones)
+├── order-service/                # Resource Server (pedidos, historial, ubicaciones, reportes)
 │   ├── src/main/java/order/
-│   │   ├── controller/           # Endpoints protegidos: CRUD de pedidos, cambiar estado, asignar repartidor, registrar ubicación, consultar historial
-│   │   ├── service/              # PedidoService, HistorialService (lógica de negocio de pedidos, optimistic locking, transacciones)
+│   │   ├── controller/           # Endpoints protegidos:
+│   │   │   ├── PedidoController       # CRUD pedidos, cambiar estado, asignar repartidor, registrar ubicación
+│   │   │   │                          # GET /api/pedidos/reportes (estadísticas de pedidos)
+│   │   │   └── HistorialController    # GET /api/pedidos/{id}/historial (eventos de un pedido)
+│   │   ├── service/              # PedidoService, HistorialService (lógica de negocio, optimistic locking, auditoría)
 │   │   ├── repository/           # PedidoRepository, HistorialRepository, UbicacionRepository (JPA)
-│   │   ├── entity/               # Pedido (con @Version), HistorialMovimiento, Ubicacion, EstadoPedido (enum)
-│   │   ├── dto/                  # PedidoRequestDTO, PedidoResponseDTO, HistorialDTO, UbicacionDTO, AsignacionDTO
+│   │   ├── entity/               # Pedido (con @Version), Historial, Ubicacion, EstadoPedido (enum)
+│   │   ├── dto/                  # PedidoRequestDTO, PedidoResponseDTO, HistorialFiltroDTO, UbicacionRequestDTO
 │   │   ├── config/               # SecurityConfig: Resource Server JWT (misma configuración que user-service)
 │   │   └── exception/            # GlobalExceptionHandler (OptimisticLockException → 409, etc.)
 │   ├── Dockerfile
@@ -239,9 +276,10 @@ Cada microservicio sigue el patrón Controller → Service → Repository → En
      "id": 1,
      "nombre": "Admin",
      "email": "admin@test.com",
-     "rol": "Administrador"
+     "rol": "ADMINISTRADOR"
    }
    ```
+   > Nota: El rol en JWT se devuelve en MAYUSCULAS: ADMINISTRADOR, OPERADOR_LOGISTICO, REPARTIDOR, CLIENTE
 
 6. **Acceder a los recursos protegidos**
    - Incluye el token en el header: `Authorization: Bearer <access_token>`
@@ -323,14 +361,17 @@ Se incluye una colección actualizada en la raíz: `PedidosTracking_OAuth2.postm
 }
 ```
 
-**Repartidor** (`capacidad` obligatorio, `disponibilidad` opcional — default `true`):
+**Repartidor** (`capacidad` obligatorio, otros opcionales):
 ```json
 {
   "nombre": "Carlos", "apellido": "López",
   "email": "carlos@test.com", "password": "pass123",
   "rol": "REPARTIDOR",
   "capacidad": 10,
-  "disponibilidad": true
+  "disponibilidad": true,
+  "telefono": "3001234567",
+  "vehiculo": "Moto Honda",
+  "estado": "DISPONIBLE"
 }
 ```
 
@@ -371,6 +412,48 @@ El token queda revocado inmediatamente. Cualquier petición posterior con ese to
 - Rol insuficiente (si se implementa) → `403 Forbidden`
 
 Los tiempos de respuesta se mantienen por debajo de 2 segundos gracias a la validación local de JWT en los Resource Servers (sin llamadas al `auth-service` en cada petición).
+
+### Nuevos endpoints para Admin Module
+
+**Repartidores** — Listar todos los repartidores
+```
+GET http://localhost:8080/api/usuarios/repartidores
+Authorization: Bearer <token>
+```
+Respuesta: Lista de repartidores con teléfono, vehículo y estado.
+
+**Configuracion** — Obtener/actualizar parámetros del sistema
+```
+GET http://localhost:8080/api/config
+Authorization: Bearer <token>
+```
+
+```
+PUT http://localhost:8080/api/config/{id}
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "valor": "nuevo_valor" }
+```
+
+**Logs** — Ver logs del sistema
+```
+GET http://localhost:8080/api/logs?limit=100
+Authorization: Bearer <token>
+```
+
+**Reportes** — Estadísticas de pedidos
+```
+GET http://localhost:8080/api/pedidos/reportes
+Authorization: Bearer <token>
+```
+Respuesta: `{ "totalPedidos": 5, "porEstado": { "PENDIENTE": 2, "EN_TRANSITO": 1, ... } }`
+
+**Historial de Pedido** — Ver eventos de un pedido
+```
+GET http://localhost:8080/api/pedidos/42/historial
+Authorization: Bearer <token>
+```
 
 ---
 
