@@ -4,6 +4,9 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -302,5 +305,17 @@ public class PedidosService {
 
         historialRepositorio.save(evento);
 
+    }
+
+    public order.dto.ReporteDTO obtenerReportes() {
+        List<Pedido> pedidos = pedidoRepositorio.findAll();
+        Map<String, Long> porEstado = new HashMap<>();
+        long total = 0;
+        for (Pedido p : pedidos) {
+            String estado = p.getEstado().name();
+            porEstado.merge(estado, 1L, Long::sum);
+            total++;
+        }
+        return new order.dto.ReporteDTO(total, porEstado);
     }
 }

@@ -32,7 +32,7 @@ public class HistorialController {
     
     // Obtiene el historial completo de un pedido
     @GetMapping("operador/{pedidoId}/historial")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
+    @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<List<HistorialFiltroDTO>> obtenerHistorial(@PathVariable Long pedidoId) {
         List<HistorialFiltroDTO> historial = historialService.obtenerHistorialPorPedido(pedidoId);
         return ResponseEntity.ok(historial);
@@ -41,7 +41,7 @@ public class HistorialController {
     // Obtiene el historial de un pedido
     // aplicando filtros especializados
     @GetMapping("/{pedidoId}/historial")
-    @PreAuthorize("hasRole('ADMIN') or hasRole('OPERADOR_LOGISTICO')")
+    @PreAuthorize("hasRole('ADMINISTRADOR') or hasRole('OPERADOR_LOGISTICO')")
     public ResponseEntity<Page<HistorialResponseDTO>> obtenerHistorial( 
         @PathVariable Long pedidoId,
         @RequestParam(required = false) String tipoEvento,
@@ -49,7 +49,7 @@ public class HistorialController {
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaDesde,
         @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate fechaHasta,
         @RequestParam(required = false) String observacion, 
-        @PageableDefault(size = 10, sort = "fechaCreacion", direction = Direction.ASC) Pageable pageable) 
+        @PageableDefault(size = 10, sort = "fechaHora", direction = Direction.ASC) Pageable pageable) 
     {
         Page<HistorialResponseDTO> historial = historialService.obtenerHistorialPorPedido(pedidoId, tipoEvento, estado, 
             fechaDesde, fechaHasta, observacion, pageable);

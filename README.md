@@ -25,9 +25,9 @@ El sistema sigue el estilo **cliente-servidor** y se compone de los siguientes m
 | Servicio | Puerto interno | Rol Seguridad | Descripción |
 |----------|----------------|---------------|-------------|
 | **auth-service** | 8081 | Emisor JWT | Emite tokens JWT tras autenticar al usuario (email/password). Expone endpoints `/auth/login` y `/auth/register`. |
-| **user-service** | 8082 | Resource Server | Gestiona usuarios y roles. Valida cada petición verificando la firma del JWT localmente con la clave secreta compartida. |
-| **order-service** | 8083 | Resource Server | Gestiona pedidos, historial y ubicaciones. También valida JWT localmente como Resource Server. |
-| **api-gateway** | 8080 | API Gateway | Actúa como punto único de entrada. Redirige peticiones y propaga el token JWT sin validarlo (la validación ocurre en los servicios). |
+| **user-service** | 8082 | Resource Server | Gestiona usuarios, roles y configuración del sistema (persistida en BD). Valida cada petición verificando la firma del JWT localmente. |
+| **order-service** | 8083 | Resource Server | Gestiona pedidos, historial, ubicaciones, reportes (estadísticas reales desde BD) y logs (basados en el historial real). También valida JWT localmente como Resource Server. |
+| **api-gateway** | 8080 | API Gateway | Actúa como punto único de entrada. Redirige peticiones a: auth-service (`/auth/**`), user-service (`/api/usuarios/**`, `/api/config/**`), order-service (`/api/pedidos/**`, `/api/historial/**`, `/api/ubicaciones/**`, `/api/logs/**`). Propaga el token JWT sin validarlo. |
 | **mysql-db** | 3306 | — | Base de datos compartida (MySQL 8). Las tablas se crean automáticamente mediante Hibernate. |
 
 **Flujo de autenticación**:
@@ -114,7 +114,7 @@ Hibernate genera y actualiza estas tablas automáticamente (`ddl-auto: update`) 
 - **Java ver >= 17**
 - **Spring Boot 4.0.x**
 - **Spring Security & JJWT 0.12.x** (para autenticación JWT)
-- **Spring Cloud Gateway** (API Gateway reactivo)
+- **Spring Cloud Gateway** (API Gateway MVC)
 - **Spring Data JPA (Hibernate)**
 - **MySQL 8**
 - **Maven**
@@ -150,36 +150,36 @@ back_end/
 │   ├── Dockerfile                # Instrucciones para construir la imagen Docker del auth-service
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
-├── user-service/                 # Resource Server (gestión de usuarios)
+├── user-service/                 # Resource Server (gestión de usuarios, configuración)
 │   ├── src/main/java/user/
-│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios)
-│   │   ├── service/              # Lógica de negocio de usuarios
-│   │   ├── repository/           # PersonaRepository
-│   │   ├── entity/               # Persona (tabla compartida con auth-service)
+│   │   ├── controller/           # Endpoints protegidos: CRUD de usuarios (/api/usuarios), configuración (/api/config)
+│   │   ├── service/              # Lógica de negocio: PersonaService, JwtService, SecurityUtils
+│   │   ├── repository/           # PersonaRepository, ConfiguracionRepository
+│   │   ├── entity/               # Persona, Rol, Configuracion
 │   │   ├── dto/                  # DTOs de request/response
-│   │   ├── config/               # SecurityConfig (valida JWT usando la misma clave secreta)
+│   │   ├── config/               # SecurityConfig, JwtAuthenticationFilter, DataInitializer (seed de config)
 │   │   └── exception/            # Manejo de errores
 │   ├── Dockerfile
 │   └── pom.xml                   # Dependencias: Spring Security, JJWT, Data JPA, MySQL
 │
-├── order-service/                # Resource Server (pedidos, historial, ubicaciones)
+├── order-service/                # Resource Server (pedidos, historial, ubicaciones, reportes, logs)
 │   ├── src/main/java/order/
-│   │   ├── controller/           # Endpoints protegidos: CRUD de pedidos, cambiar estado, asignar repartidor, registrar ubicación, consultar historial
+│   │   ├── controller/           # Endpoints protegidos: CRUD de pedidos (/api/pedidos), historial (/api/pedidos/{id}/historial), reportes (/api/pedidos/reportes — real desde BD), logs (/api/logs — basado en historial), cambio de estado, asignación de repartidor, registro de ubicación
 │   │   ├── service/              # PedidoService, HistorialService (lógica de negocio de pedidos, optimistic locking, transacciones)
 │   │   ├── repository/           # PedidoRepository, HistorialRepository, UbicacionRepository (JPA)
 │   │   ├── entity/               # Pedido (con @Version), HistorialMovimiento, Ubicacion, EstadoPedido (enum)
-│   │   ├── dto/                  # PedidoRequestDTO, PedidoResponseDTO, HistorialDTO, UbicacionDTO, AsignacionDTO
+│   │   ├── dto/                  # PedidoRequestDTO, PedidoResponseDTO, HistorialDTO, UbicacionDTO, ReporteDTO
 │   │   ├── config/               # SecurityConfig: Resource Server JWT (misma configuración que user-service)
 │   │   └── exception/            # GlobalExceptionHandler (OptimisticLockException → 409, etc.)
 │   ├── Dockerfile
 │   └── pom.xml                   # Mismas dependencias que user-service
 │
-├── api-gateway/                  # Punto único de entrada (Spring Cloud Gateway)
+├── api-gateway/                  # Punto único de entrada (Spring Cloud Gateway MVC)
 │   ├── src/main/java/gateway/
-│   │   ├── config/               # GatewayConfig: define rutas (/auth/** → auth-service, /api/usuarios/** → user-service, /api/pedidos/** → order-service), timeouts, CORS, filtros (logs, etc.)
-│   │   └── filter/               # (Opcional) Filtros personalizados, por ejemplo para registrar cada petición o añuir headers
+│   │   ├── config/               # CorsConfig: CORS para todas las rutas. Las rutas del gateway se definen en application.yaml: /auth/** → auth-service, /api/usuarios/** → user-service, /api/config/** → user-service, /api/pedidos/** → order-service, /api/historial/** → order-service, /api/ubicaciones/** → order-service, /api/logs/** → order-service
+│   │   └── ApiGatewayApplication.java
 │   ├── Dockerfile
-│   └── pom.xml                   # Dependencias: Spring Cloud Gateway (no incluye Spring Web, son incompatibles)
+│   └── pom.xml                   # Dependencias: Spring Cloud Gateway WebMVC (no incluye Spring Web, son incompatibles)
 │
 ├── docker-compose.yml            # Orquestación de todos los contenedores: mysql-db, auth-service, user-service, order-service, api-gateway. Define red interna, volúmenes, variables de entorno.
 ├── .gitignore                    # Archivos y carpetas ignoradas por Git: target/, .idea/, .DS_Store, application-secrets.yml, etc.
@@ -251,41 +251,7 @@ Para detener los contenedores:
 ```bash
 docker compose down
 ```
-Ejemplo de docker-compose.yml con healthchecks
-```
-yaml
-version: '3.8'
-services:
-  mysql-db:
-    image: mysql:8.0
-    environment:
-      MYSQL_DATABASE: tracking_db
-      MYSQL_ROOT_PASSWORD: rootpass
-    ports:
-      - "3306:3306"
-    healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - pedidos-net
-
-  auth-service:
-    build: ./auth-service
-    ports:
-      - "8081:8080"
-    environment:
-      JWT_SECRET: ${JWT_SECRET}
-    depends_on:
-      mysql-db:
-        condition: service_healthy
-    networks:
-      - pedidos-net
-
-  # user-service y order-service similares, con depends_on a mysql-db (service_healthy)
-  # api-gateway depende de auth-service, user-service, order-service
-```
+El archivo `docker-compose.yml` completo se encuentra en la raíz del proyecto. Define la red interna `pedidos-net`, volúmenes persistentes para MySQL y healthchecks en todos los servicios.
 ---
 
 ## 🧪 Pruebas con Postman
@@ -352,7 +318,16 @@ Errores comunes: `400` si falta `capacidad` en un repartidor, o si `adminId` no 
 - **Método**: GET
 - **Headers**: `Authorization: Bearer <token>`
 
-Esperar respuesta `200 OK` con lista de pedidos (vacía al principio).
+Otros endpoints disponibles a través del gateway:
+- `GET /api/usuarios` — Listar usuarios (Admin, Operador)
+- `GET /api/usuarios/repartidores` — Listar repartidores (Admin)
+- `GET /api/config` — Parámetros de configuración (Admin)
+- `PUT /api/config/{id}` — Actualizar parámetro (Admin)
+- `GET /api/logs` — Logs del sistema (Admin)
+- `GET /api/pedidos/reportes` — Estadísticas de pedidos (Admin)
+- `GET /api/pedidos/{id}/historial` — Historial de pedido (Admin)
+
+Esperar respuesta `200 OK`.
 
 ### Cerrar sesión (Logout)
 
@@ -395,8 +370,9 @@ Render permite desplegar un `docker-compose.yml` como Blueprint. Pasos:
 graph TD
     Client[Frontend React] -->|POST /auth/login| Auth[auth-service :8081]
     Client -->|API calls con Bearer token| Gateway[API Gateway :8080]
-    Gateway -->|/api/usuarios/**| User[user-service :8082]
-    Gateway -->|/api/pedidos/**| Order[order-service :8083]
+    Gateway -->|/auth/**| Auth
+    Gateway -->|/api/usuarios/** /api/config/**| User[user-service :8082]
+    Gateway -->|/api/pedidos/** /api/historial/** /api/ubicaciones/** /api/logs/**| Order[order-service :8083]
     Auth --> DB[(MySQL :3306)]
     User --> DB
     Order --> DB

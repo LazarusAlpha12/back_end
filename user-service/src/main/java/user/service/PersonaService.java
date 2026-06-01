@@ -39,6 +39,12 @@ public class PersonaService {
             .collect(Collectors.toList());
     }
 
+    public List<PersonaResponseDTO> listarRepartidores() {
+        return personaRepository.findByRol(user.entity.Rol.REPARTIDOR).stream()
+            .map(this::convertToDTO)
+            .collect(Collectors.toList());
+    }
+
     public PersonaResponseDTO obtenerPorId(Long id) {
         Persona persona = personaRepository.findById(id)
             .orElseThrow(() -> new RuntimeException("Persona no encontrada con ID: " + id));
