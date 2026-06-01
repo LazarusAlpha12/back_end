@@ -64,4 +64,6 @@ public interface PedidoRepositorio extends JpaRepository<Pedido, Long>{
       @Param("horaHasta") String horaHasta,
       @Param("pedidoIds") Set<Long> pedidoIds,
       Pageable pageable);
+
+   long countByEstado(EstadoPedido estado);
 }

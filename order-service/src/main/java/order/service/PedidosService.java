@@ -4,6 +4,7 @@ import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Map;
 import java.util.Set;
 
 import org.springframework.beans.factory.annotation.Autowired;
@@ -302,5 +303,18 @@ public class PedidosService {
 
         historialRepositorio.save(evento);
 
+    }
+
+    public long contarTodos() {
+        return pedidoRepositorio.count();
+    }
+
+    public Map<String, Long> contarPorEstado() {
+        Map<String, Long> resultado = new java.util.LinkedHashMap<>();
+        for (EstadoPedido estado : EstadoPedido.values()) {
+            long count = pedidoRepositorio.countByEstado(estado);
+            resultado.put(estado.name(), count);
+        }
+        return resultado;
     }
 }

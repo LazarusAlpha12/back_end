@@ -14,12 +14,15 @@ public class HistorialFiltroDTO {
     private String tipoEvento;
     private LocalDateTime fechaHora;
     private String operadorNombre;
+    private String observacion;
+    private Long pedidoId;
 
-    // Constructor manual para que JPA lo encuentre
-    public HistorialFiltroDTO(Long id, String tipoEvento, LocalDateTime fechaHora, String operadorNombre) {
+    public HistorialFiltroDTO(Long id, String tipoEvento, LocalDateTime fechaHora, String operadorNombre, String observacion, Long pedidoId) {
         this.id = id;
         this.tipoEvento = tipoEvento;
         this.fechaHora = fechaHora;
         this.operadorNombre = operadorNombre;
+        this.observacion = observacion;
+        this.pedidoId = pedidoId;
     }
 }

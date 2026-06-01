@@ -23,7 +23,7 @@ public interface HistorialRepositorio extends JpaRepository<Historial, Long>{
 
     // Obtener eventos con datos de operador (usando JOIN) devolviendo DTO
     @Query("SELECT new order.dto.HistorialFiltroDTO(" +
-           "h.id, h.tipoEvento, h.fechaHora, p.nombre) " +
+           "h.id, h.tipoEvento, h.fechaHora, p.nombre, h.observacion, h.pedido.id) " +
            "FROM Historial h " +
            "LEFT JOIN Persona p ON h.operadorId = p.id " +
            "WHERE h.pedido.id = :pedidoId")
