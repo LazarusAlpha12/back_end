@@ -17,7 +17,7 @@ public class CorsConfig {
     public FilterRegistrationBean<CorsFilter> corsFilter() {
         // 1. Define las reglas CORS
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOriginPatterns(List.of("http://localhost:5173")); // URL del frontend (ajustar al de Vercel después)
+        config.setAllowedOriginPatterns(List.of("*")); // Permitir peticiones desde cualquier puerto en desarrollo
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setAllowCredentials(true); // Importante si se usan cookies o sesiones

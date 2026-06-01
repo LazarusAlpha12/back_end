@@ -13,4 +13,6 @@ public interface PersonaRepository extends JpaRepository<Persona, Long> {
     Optional<Persona> findByEmail(String email);
 
     boolean existsByEmail(String email);
+
+    java.util.List<Persona> findByRol(user.entity.Rol rol);
 }
