@@ -1,5 +1,6 @@
 package order.repository;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Set;
 
@@ -11,6 +12,8 @@ import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
 import order.dto.HistorialFiltroDTO;
+import order.dto.HistorialResponseDTO;
+import order.entity.EstadoPedido;
 import order.entity.Historial;
 
 @Repository
@@ -20,6 +23,23 @@ public interface HistorialRepositorio extends JpaRepository<Historial, Long>{
 
     // Con paginación
     Page<Historial> findByPedidoId(Long pedidoId, Pageable pageable);
+
+    @Query("SELECT new order.dto.HistorialResponseDTO(h.pedido.id, " +
+       "h.tipoEvento, h.estado, h.fechaHora, h.observacion) " +
+       "FROM Historial h WHERE h.pedido.id = :pedidoId " +
+       "AND (:tipoEvento IS NULL OR h.tipoEvento = :tipoEvento) " +
+       "AND (:estado IS NULL OR h.estado = :estado) " +
+       "AND (:fechaDesde IS NULL OR h.fechaHora >= :fechaDesde) " +
+       "AND (:fechaHasta IS NULL OR h.fechaHora <= :fechaHasta) " +
+       "AND (:observacion IS NULL OR h.observacion LIKE CONCAT('%', :observacion, '%'))")
+    Page<HistorialResponseDTO> filtrarHistorial(
+        @Param("pedidoId") Long pedidoId,
+        @Param("tipoEvento") String tipoEvento,
+        @Param("estado") EstadoPedido estado,
+        @Param("fechaDesde") LocalDateTime fechaDesde,
+        @Param("fechaHasta") LocalDateTime fechaHasta,
+        @Param("observacion") String observacion, 
+        Pageable page);
 
     // Obtener eventos con datos de operador (usando JOIN) devolviendo DTO
     @Query("SELECT new order.dto.HistorialFiltroDTO(" +
