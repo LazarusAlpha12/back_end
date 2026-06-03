@@ -1,0 +1,9 @@
+Faltan pruebas de integración para verificar que funcione user-service para la asignación de repartidores a pedidos 
+siempre y cuando se solicite la asignación de una ubicación de un pedido. 
+
+Nota1: En order service, el Test_error_asignacion es para indicar que el checking de errores implementado funciona para 
+que el sistema no pueda asignar IDs de personas cuyo rol no sea el de un repartidor. 
+
+Nota2: Se integraro las pruebas de funcionalidad de backend directamente en frontend para user-service debido a 
+problemas de tiempo con la entrega. Para el 15 de junio debe haber evidencia de integración para clientes y 
+repartidores con Postman antes de integrar directamente en frontend. 
